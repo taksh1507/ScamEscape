@@ -482,9 +482,27 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
               </div>
 
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '32px' }}>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginBottom: '16px', letterSpacing: '1px' }}>SIMULATION COMPLETE</div>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginBottom: '16px', letterSpacing: '1px' }}>PROCEEDING TO NEXT ROUND</div>
                 <button 
-                  onClick={() => router.push('/')}
+                  onClick={async () => {
+                    try {
+                      // Initialize Round 2 game backend
+                      await fetch('http://localhost:8000/round2/initialize?difficulty=easy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          room_code: roomCode,
+                          player_ids: [playerId], // Must be array
+                        }),
+                      })
+                      // Navigate to Round 2
+                      const params = `?room=${roomCode}&player=${playerId}`
+                      router.push(`/simulation/whatsapp${params}`)
+                    } catch (err) {
+                      console.error('Failed to initialize Round 2:', err)
+                      router.push('/')
+                    }
+                  }}
                   style={{ 
                     background: 'var(--red)', 
                     color: '#fff', 
@@ -498,7 +516,7 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                     pointerEvents: 'all',
                     boxShadow: '0 0 20px rgba(255,23,68,0.3)'
                   }}
-                >RETURN TO BASE</button>
+                >NEXT ROUND ▶</button>
               </div>
             </div>
           )}

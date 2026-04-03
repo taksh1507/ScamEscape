@@ -64,6 +64,18 @@ async def start_game(room_code: str, broadcast_fn, difficulty: str = "easy") -> 
 
         await run_round(room_code, round_number, broadcast_fn)
 
+    # ── After Round 1, keep game active for Round 2 ──────────────────────────
+    log.info(f"Round 1 complete in {room_code}. Waiting for Round 2 or timeout...")
+    
+    # Wait up to 30 minutes for Round 2 to complete
+    # The game stays PLAYING status during this time
+    room = get_room(room_code)
+    if room:
+        room.status = RoomStatus.PLAYING  # Don't finish yet - Round 2 might run
+        save_room(room)
+    
+    await asyncio.sleep(1800)  # 30 minute timeout
+    
     # ── Finish ────────────────────────────────────────────────────────────────
     room = get_room(room_code)
     if room:

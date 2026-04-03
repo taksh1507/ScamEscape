@@ -8,6 +8,7 @@ import { listRooms, RoomListItem } from '@/lib/api'
 import type { Difficulty } from '@/lib/types'
 import NameInput from './NameInput'
 import DifficultySelect from './DifficultySelect'
+import RoundSelector from '@/components/ui/RoundSelector'
 import Modal from '@/components/ui/Modal'
 import Toast from '@/components/ui/Toast'
 
@@ -219,6 +220,7 @@ export default function RoomSection() {
   const [agentName, setAgentName] = useState('')
   const [selectedDiff, setSelectedDiff] = useState<Difficulty>('easy')
   const [modalOpen, setModalOpen] = useState(false)
+  const [roundSelectorOpen, setRoundSelectorOpen] = useState(false)
   const [liveRooms, setLiveRooms] = useState<RoomListItem[]>([])
   const [joinCode, setJoinCode] = useState('')
   const [launching, setLaunching] = useState(false)
@@ -232,12 +234,43 @@ export default function RoomSection() {
     playerId: null,
   })
 
-  const handleGameStarting = useCallback((difficulty: string) => {
-    setLaunching(true)
+  const handleRoundSelected = useCallback(async (round: 'call' | 'whatsapp') => {
     const { roomCode, playerId } = sessionRef.current
     const params = `?room=${roomCode}&player=${playerId}`
-    // All games start with dynamic call simulation
+    
+    try {
+      // Initialize Round 2 game backend if selected
+      if (round === 'whatsapp') {
+        await fetch(`http://localhost:8000/round2/initialize?difficulty=${selectedDiff}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room_code: roomCode,
+            player_ids: [playerId], // Must be array
+          }),
+        })
+      }
+      
+      // Navigate to game
+      if (round === 'call') {
+        router.push(`/simulation/call${params}`)
+      } else {
+        router.push(`/simulation/whatsapp${params}`)
+      }
+    } catch (err) {
+      showToast('INIT ERROR', 'Failed to initialize game')
+      console.error(err)
+    } finally {
+      setRoundSelectorOpen(false)
+      setLaunching(false)
+    }
+  }, [router, selectedDiff]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleGameStarting = useCallback((difficulty: string) => {
+    const { roomCode, playerId } = sessionRef.current
+    const params = `?room=${roomCode}&player=${playerId}`
     router.push(`/simulation/call${params}`)
+    setLaunching(false)
   }, [router])
 
   const {
@@ -531,6 +564,17 @@ export default function RoomSection() {
         difficulty={selectedDiff}
         onClose={() => setModalOpen(false)}
         onConfirm={handleLaunch}
+      />
+
+      {/* Round selector modal */}
+      <RoundSelector
+        isOpen={roundSelectorOpen}
+        onClose={() => {
+          setRoundSelectorOpen(false)
+          setLaunching(false)
+        }}
+        onSelect={handleRoundSelected}
+        isLoading={launching}
       />
 
       <Toast title={toast.title} message={toast.message} visible={toast.visible} />
