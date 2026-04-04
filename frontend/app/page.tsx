@@ -10,7 +10,7 @@ import RoomSection   from '@/components/sections/RoomSection'
 import CursorEffect  from '@/components/ui/CursorEffect'
 import Toast         from '@/components/ui/Toast'
 import { useToast }  from '@/hooks/useToast'
-
+import { useRouter } from 'next/navigation'
 export default function HomePage() {
   const { toast, show: showToast } = useToast()
 
