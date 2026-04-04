@@ -61,56 +61,28 @@ const Scanner = () => {
     if (!text.trim() && !image) return;
     setLoading(true); setResult(null); setError(null);
     try {
-      const userContent: any[] = [];
-      const jsonSchema = '{"probability":0-100,"verdict":"SAFE|SUSPICIOUS|DANGEROUS","redFlags":["..."],"analysis":"2-3 sentences","action":"recommended action","scamType":"type or None"}';
-      if (image) {
-        userContent.push({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.base64 } });
-        userContent.push({ type: 'text', text: `You are a cybersecurity expert for Indian users. Analyze this screenshot for scam/fraud indicators. ${text.trim() ? `User context: "${text.trim()}"` : ''} Return ONLY raw JSON no markdown: ${jsonSchema}` });
-      } else {
-        userContent.push({ type: 'text', text: `You are a cybersecurity expert for Indian users. Analyze this message for fraud. Return ONLY raw JSON no markdown: ${jsonSchema}\n\nMessage: "${text.trim()}"` });
-      }
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': 'placeholder-key', // NOTE: Real API key required in env for this to actually proxy or connect
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerously-allow-browser': 'true'
-        },
-        body: JSON.stringify({ model: 'claude-3-5-sonnet-20240620', max_tokens: 1000, messages: [{ role: 'user', content: userContent }] })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text.trim() || undefined,
+          imageBase64: image?.base64 ?? undefined,
+          imageMimeType: image?.mimeType ?? undefined,
+        }),
       });
+
       const data = await res.json();
+      console.log('API result:', data);
 
-      if (!res.ok) {
-        throw new Error(data.error?.message || 'API Error');
-      }
+      if (!res.ok) throw new Error(data.error || 'API Error');
 
-      const raw = (data.content || []).map((c: any) => c.text || '').join('').trim().replace(/```json|```/g, '').trim();
-      setResult(JSON.parse(raw));
+      setResult(data.reply);
     } catch (e: any) {
-      console.warn("Using mock result instead of API:", e.message);
-      // Fallback mock since direct browser API fetch to Anthropic usually needs a backend/key
-      setTimeout(() => {
-        setResult({
-          probability: 85,
-          verdict: 'DANGEROUS',
-          scamType: 'Phishing',
-          redFlags: ['Urgency tactic', 'Suspicious URL format', 'Request for sensitive info'],
-          analysis: 'This appears to be a common social engineering attempt attempting to steal credentials via a manipulated link setup.',
-          action: 'Do not click the link and immediately delete the message.'
-        })
-        setLoading(false)
-      }, 2000)
+      setError(e.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
-
-  // ensure we typecast verdict correctly or fallback
-  let vColor = T.cyan;
-  if (result) {
-    if (result.verdict === 'SAFE') vColor = T.green;
-    else if (result.verdict === 'SUSPICIOUS') vColor = T.yellow;
-    else if (result.verdict === 'DANGEROUS') vColor = T.red;
-  }
 
   return (
     <div style={{ padding: '80px 24px 60px', maxWidth: 900, margin: '0 auto', minHeight: '80vh' }}>
@@ -118,13 +90,15 @@ const Scanner = () => {
         <div style={{ padding: 13, background: `${T.cyan}12`, borderRadius: 10 }}><Search size={26} color={T.cyan} /></div>
         <div>
           <h2 className="syne" style={{ fontSize: 'clamp(28px,5vw,44px)', fontWeight: 800, fontFamily: 'var(--font-head)', letterSpacing: '2px', margin: 0, textTransform: 'uppercase' }}>AI <span style={{ color: T.red }}>Scanner</span></h2>
-          <p style={{ color: T.mid, fontSize: 15, margin: '4px 0 0 0' }}>Powered by Claude · Paste text <strong style={{ color: '#fff' }}>or upload a screenshot</strong> for instant fraud analysis</p>
+          <p style={{ color: T.mid, fontSize: 15, margin: '4px 0 0 0' }}>Powered by Groq · Paste text <strong style={{ color: '#fff' }}>or upload a screenshot</strong> for instant fraud analysis</p>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 28, marginTop: 28 }}>
+
         {/* LEFT */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
           {/* Drop zone */}
           <div
             style={{
@@ -174,8 +148,14 @@ const Scanner = () => {
           </div>
 
           {/* Text */}
-          <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Paste suspicious SMS, email, WhatsApp message, or call script here…" style={{ width: '100%', minHeight: 120, background: 'rgba(0,0,0,0.4)', border: `1px solid ${T.border}`, borderRadius: 10, padding: 16, color: '#fff', fontFamily: 'var(--font-body)', fontSize: 15, lineHeight: 1.65, resize: 'vertical', outline: 'none', transition: 'border-color 0.2s' }}
-            onFocus={e => e.target.style.borderColor = T.red} onBlur={e => e.target.style.borderColor = T.border} />
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="Paste suspicious SMS, email, WhatsApp message, or call script here…"
+            style={{ width: '100%', minHeight: 120, background: 'rgba(0,0,0,0.4)', border: `1px solid ${T.border}`, borderRadius: 10, padding: 16, color: '#fff', fontFamily: 'var(--font-body)', fontSize: 15, lineHeight: 1.65, resize: 'vertical', outline: 'none', transition: 'border-color 0.2s' }}
+            onFocus={e => e.target.style.borderColor = T.red}
+            onBlur={e => e.target.style.borderColor = T.border}
+          />
 
           <button
             onClick={analyze}
@@ -204,7 +184,8 @@ const Scanner = () => {
           <div style={{ marginTop: '12px' }}>
             <div className="mono" style={{ fontSize: 11, color: T.dim, letterSpacing: '0.1em', marginBottom: 12, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Try an example:</div>
             {EXAMPLES.map((ex, i) => (
-              <button key={i} onClick={() => { setText(ex); setImage(null); setResult(null); }} style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, color: T.mid, fontSize: 14, textAlign: 'left', cursor: 'pointer', fontFamily: 'var(--font-body)', lineHeight: 1.45, marginBottom: 8, transition: 'all 0.15s' }}
+              <button key={i} onClick={() => { setText(ex); setImage(null); setResult(null); }}
+                style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, color: T.mid, fontSize: 14, textAlign: 'left', cursor: 'pointer', fontFamily: 'var(--font-body)', lineHeight: 1.45, marginBottom: 8, transition: 'all 0.15s' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = T.cyan; e.currentTarget.style.color = '#fff'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = T.mid; }}>
                 {ex.slice(0, 72)}…
@@ -215,66 +196,101 @@ const Scanner = () => {
 
         {/* RIGHT: Result */}
         <div>
+
+          {/* Loading */}
           {loading && (
             <div style={{ background: 'var(--card)', border: `1px solid ${T.border}`, borderRadius: '12px', padding: 32, textAlign: 'center', minHeight: 360, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
               <Spinner size={40} />
-              <div className="mono" style={{ fontSize: 14, color: T.red, letterSpacing: '0.12em', animation: 'blink 1.4s infinite', fontFamily: 'var(--font-mono)' }}>
+              <div className="mono" style={{ fontSize: 14, color: T.red, letterSpacing: '0.12em', fontFamily: 'var(--font-mono)' }}>
                 {image ? 'READING SCREENSHOT...' : 'ANALYZING THREAT VECTORS...'}
               </div>
               <div style={{ color: T.dim, fontSize: 14, maxWidth: 260, lineHeight: 1.6 }}>
-                Claude is examining {image ? 'the screenshot for visual scam patterns, fake URLs, and suspicious branding' : 'language patterns, domains, and social engineering tactics'}
+                {image
+                  ? 'Vision model is examining the screenshot for visual scam patterns, fake URLs, and suspicious branding'
+                  : 'Groq is examining language patterns, domains, and social engineering tactics'}
               </div>
             </div>
           )}
+
+          {/* Error */}
           {error && !loading && (
             <div style={{ background: 'var(--card)', border: `1px solid ${T.red}35`, borderRadius: '12px', padding: 24 }}>
               <AlertCircle size={26} color={T.red} style={{ marginBottom: 12 }} />
               <p style={{ color: T.red, fontWeight: 600, fontSize: 16, margin: 0 }}>{error}</p>
             </div>
           )}
-          {result && !loading && (
-            <div style={{ background: 'var(--card)', borderRadius: '12px', padding: 28, border: `1px solid ${vColor}28`, minHeight: 360, animation: 'fadeSlideUp 0.4s ease' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <div>
-                  <div className="mono" style={{ fontSize: 11, color: T.dim, marginBottom: 6, fontFamily: 'var(--font-mono)', letterSpacing: '2px' }}>VERDICT</div>
-                  <div className="syne" style={{ fontSize: 32, fontWeight: 800, color: vColor, fontFamily: 'var(--font-head)', letterSpacing: '1px' }}>{result.verdict}</div>
-                </div>
-                <div style={{ width: 80, height: 80, borderRadius: '50%', border: `3px solid ${vColor}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: `${vColor}10`, boxShadow: `0 0 20px ${vColor}20` }}>
-                  <div className="syne" style={{ fontSize: 32, fontWeight: 800, color: vColor, lineHeight: 1, fontFamily: 'var(--font-head)' }}>{result.probability}</div>
-                  <div className="mono" style={{ fontSize: 10, color: vColor, fontFamily: 'var(--font-mono)' }}>% RISK</div>
-                </div>
-              </div>
 
-              <div className="pbar" style={{ marginBottom: 24, height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${result.probability}%`, background: `linear-gradient(90deg,${T.green},${T.yellow} 50%,${T.red})`, transition: 'width 1.2s ease' }} />
-              </div>
+          {/* Result */}
+          {result && !loading && (() => {
+            const prob    = result.probability    ?? result.riskScore          ?? 0
+            const verdict = result.verdict        ?? result.riskLevel          ?? 'UNKNOWN'
+            const analysis= result.analysis       ?? result.explanation        ?? 'No analysis available.'
+            const action  = result.action         ?? result.recommendedActions?.[0] ?? 'Exercise caution.'
+            const flags   = result.redFlags       ?? []
+            const scamType= result.scamType       ?? 'Other'
 
-              {result.scamType && result.scamType !== 'None' && (
-                <div style={{ marginBottom: 20 }}>
-                  <div className="mono" style={{ fontSize: 11, color: T.dim, marginBottom: 8, fontFamily: 'var(--font-mono)' }}>SCAM TYPE</div>
-                  <Tag color={T.orange}>{result.scamType}</Tag>
-                </div>
-              )}
-              {result.redFlags?.length > 0 && (
-                <div style={{ marginBottom: 20 }}>
-                  <div className="mono" style={{ fontSize: 11, color: T.dim, marginBottom: 10, fontFamily: 'var(--font-mono)' }}>⚠ RED FLAGS</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {result.redFlags.map((f: string, i: number) => (
-                      <span key={i} style={{ fontSize: 12, padding: '4px 10px', background: `${T.red}0C`, color: '#ff7070', border: `1px solid ${T.red}30`, borderRadius: 6, fontFamily: 'var(--font-body)' }}>{f}</span>
-                    ))}
+            let vc = T.cyan
+            if      (verdict === 'SAFE'      || verdict === 'LOW')    vc = T.green
+            else if (verdict === 'SUSPICIOUS'|| verdict === 'MEDIUM') vc = T.yellow
+            else if (verdict === 'DANGEROUS' || verdict === 'HIGH')   vc = T.red
+
+            return (
+              <div style={{ background: 'var(--card)', borderRadius: '12px', padding: 28, border: `1px solid ${vc}28`, minHeight: 360, animation: 'fadeSlideUp 0.4s ease' }}>
+
+                {/* Header: verdict + score circle */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                  <div>
+                    <div className="mono" style={{ fontSize: 11, color: T.dim, marginBottom: 6, fontFamily: 'var(--font-mono)', letterSpacing: '2px' }}>VERDICT</div>
+                    <div className="syne" style={{ fontSize: 32, fontWeight: 800, color: vc, fontFamily: 'var(--font-head)', letterSpacing: '1px' }}>{verdict}</div>
+                  </div>
+                  <div style={{ width: 80, height: 80, borderRadius: '50%', border: `3px solid ${vc}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: `${vc}10`, boxShadow: `0 0 20px ${vc}20` }}>
+                    <div className="syne" style={{ fontSize: 32, fontWeight: 800, color: vc, lineHeight: 1, fontFamily: 'var(--font-head)' }}>{prob}</div>
+                    <div className="mono" style={{ fontSize: 10, color: vc, fontFamily: 'var(--font-mono)' }}>% RISK</div>
                   </div>
                 </div>
-              )}
-              <div style={{ padding: 16, background: 'rgba(0,0,0,0.3)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 16 }}>
-                <div className="mono" style={{ fontSize: 11, color: T.dim, marginBottom: 8, fontFamily: 'var(--font-mono)' }}>ANALYSIS</div>
-                <p style={{ fontSize: 14, color: '#ccc', lineHeight: 1.7, margin: 0 }}>{result.analysis}</p>
+
+                {/* Progress bar */}
+                <div style={{ marginBottom: 24, height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${prob}%`, background: `linear-gradient(90deg,${T.green},${T.yellow} 50%,${T.red})`, transition: 'width 1.2s ease' }} />
+                </div>
+
+                {/* Scam type */}
+                {scamType && scamType !== 'None' && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div className="mono" style={{ fontSize: 11, color: T.dim, marginBottom: 8, fontFamily: 'var(--font-mono)' }}>SCAM TYPE</div>
+                    <Tag color={T.orange}>{scamType}</Tag>
+                  </div>
+                )}
+
+                {/* Red flags */}
+                {flags.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div className="mono" style={{ fontSize: 11, color: T.dim, marginBottom: 10, fontFamily: 'var(--font-mono)' }}>⚠ RED FLAGS</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {flags.map((f: string, i: number) => (
+                        <span key={i} style={{ fontSize: 12, padding: '4px 10px', background: `${T.red}0C`, color: '#ff7070', border: `1px solid ${T.red}30`, borderRadius: 6, fontFamily: 'var(--font-body)' }}>{f}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Analysis */}
+                <div style={{ padding: 16, background: 'rgba(0,0,0,0.3)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 16 }}>
+                  <div className="mono" style={{ fontSize: 11, color: T.dim, marginBottom: 8, fontFamily: 'var(--font-mono)' }}>ANALYSIS</div>
+                  <p style={{ fontSize: 14, color: '#ccc', lineHeight: 1.7, margin: 0 }}>{analysis}</p>
+                </div>
+
+                {/* Action */}
+                <div style={{ padding: 16, background: `${T.cyan}08`, border: `1px solid ${T.cyan}2A`, borderRadius: 10 }}>
+                  <div className="mono" style={{ fontSize: 11, color: T.cyan, marginBottom: 8, fontFamily: 'var(--font-mono)' }}>✓ RECOMMENDED ACTION</div>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: '#fff', lineHeight: 1.6, margin: 0 }}>{action}</p>
+                </div>
+
               </div>
-              <div style={{ padding: 16, background: `${T.cyan}08`, border: `1px solid ${T.cyan}2A`, borderRadius: 10 }}>
-                <div className="mono" style={{ fontSize: 11, color: T.cyan, marginBottom: 8, fontFamily: 'var(--font-mono)' }}>✓ RECOMMENDED ACTION</div>
-                <p style={{ fontSize: 15, fontWeight: 600, color: '#fff', lineHeight: 1.6, margin: 0 }}>{result.action}</p>
-              </div>
-            </div>
-          )}
+            )
+          })()}
+
+          {/* Standby */}
           {!result && !loading && !error && (
             <div style={{ background: 'var(--card)', padding: 40, textAlign: 'center', opacity: 0.6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 360, border: '2px dashed rgba(255,255,255,0.07)', borderRadius: '12px' }}>
               <Cpu size={56} style={{ marginBottom: 20, color: T.dim }} />
@@ -282,6 +298,7 @@ const Scanner = () => {
               <div style={{ fontSize: 14, color: T.mid, marginTop: 12, lineHeight: 1.6 }}>Upload a screenshot or paste a<br />suspicious message to begin analysis</div>
             </div>
           )}
+
         </div>
       </div>
     </div>
