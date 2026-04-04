@@ -51,7 +51,12 @@ export default function Navbar({ onEnter }: NavbarProps) {
           </a>
         ))}
       </div>
-
+       <Link href="/live-scam-feed">
+        <span style={{ cursor: "pointer", color: "blue" }}>
+          🚨 Live Scam Feed
+        </span>
+      </Link>
+      
       {/* CTA Button */}
       <button
         onClick={onEnter}
