@@ -3,31 +3,28 @@ AI-Based Scam Message Generator
 Uses Groq to generate dynamic, realistic scam scenarios
 """
 
-import asyncio
-import random
-import os
+import json
 from typing import List, Optional, Dict, Any
 from openai import AsyncOpenAI
-from dotenv import load_dotenv
 
+from app.core.config import settings
 from app.constants.whatsapp_types import ScammerType
 from app.utils.logger import get_logger
 
 log = get_logger(__name__)
 
-# Load environment variables
-load_dotenv()
-
 # Initialize Groq client (compatible with OpenAI API)
-api_key = os.getenv("GROQ_API_KEY")
-base_url = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+api_key = settings.GROQ_API_KEY
+base_url = settings.GROQ_BASE_URL
 
 if not api_key:
-    log.error("GROQ_API_KEY not set in environment variables")
+    log.error("GROQ_API_KEY not set in configuration")
 
 # Groq OpenAI-compatible client
+# We provide a dummy key if it's missing to avoid crash at startup, 
+# though AI features will fail later
 client = AsyncOpenAI(
-    api_key=api_key,
+    api_key=api_key or "missing_key",
     base_url=base_url
 )
 
@@ -192,7 +189,6 @@ class AIScamGenerator:
             
             # Parse response
             try:
-                import json
                 content = response.choices[0].message.content.strip()
                 
                 # Try to extract JSON if wrapped in code blocks

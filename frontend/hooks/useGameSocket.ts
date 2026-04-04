@@ -10,6 +10,9 @@ export type GameEvent =
   | { event: 'player_joined'; player_id: string; nickname: string }
   | { event: 'player_left';   player_id: string; nickname: string }
   | { event: 'action_received'; action: string }
+  | { event: 'decision_result';  data: { selected_option: string; risk_level: string; grade: string; explanation: string; better_action: string } }
+  | { event: 'call_update';    player_id: string; data: { phase: string; message: string; suggested_actions: any[] } }
+  | { event: 'round_end';      round_number: number }
   | { event: 'error';         message: string }
   | { event: 'pong' }
 
@@ -77,9 +80,13 @@ export function useGameSocket(
     send({ type: 'submit_action', action })
   }, [send])
 
-  const startGame = useCallback(() => {
-    send({ type: 'start_game' })
+  const sendUserAction = useCallback((action: string) => {
+    send({ type: 'user_action', action })
   }, [send])
 
-  return { connected, send, submitAction, startGame }
+  const startGame = useCallback((difficulty: string = 'easy') => {
+    send({ type: 'start_game', difficulty })
+  }, [send])
+
+  return { connected, send, submitAction, sendUserAction, startGame }
 }

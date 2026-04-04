@@ -18,7 +18,7 @@ from app.services.ai_service import generate_call_scenario
 # ─── CALL Template System ───────────────────────────────────────────────────
 
 class CallScenarioTemplate:
-    def __init__(self, category: str, callers: List[str], intros: List[str], problems: List[str], pressures: List[str], actions: List[str], question: str, options: List[str], correct_answer: str):
+    def __init__(self, category: str, callers: List[str], intros: List[str], problems: List[str], pressures: List[str], actions: List[str], question: str, options: List[str], correct_answer: str, tip: str = "Legitimate organizations will never pressure you into sharing sensitive info over a call."):
         self.category = category
         self.callers = callers
         self.intros = intros
@@ -28,32 +28,28 @@ class CallScenarioTemplate:
         self.question = question
         self.options = options
         self.correct_answer = correct_answer
+        self.tip = tip
 
     def generate(self) -> Dict[str, Any]:
+        """Creates a single instance from this template."""
         caller = random.choice(self.callers)
-        script = [
-            random.choice(self.intros),
-            random.choice(self.problems),
-            random.choice(self.pressures),
-            random.choice(self.actions)
-        ]
-        # Occasionally add an extra line for variety (5-6 lines)
-        if random.random() > 0.5:
-            script.insert(2, "This is a recorded line for security purposes.")
-        if random.random() > 0.7:
-            script.append("Please do not hang up while we process this.")
-
+        intro  = random.choice(self.intros)
+        prob   = random.choice(self.problems)
+        press  = random.choice(self.pressures)
+        act    = random.choice(self.actions)
+        
         return {
             "caller": caller,
-            "script": script,
+            "script": [intro, prob, press, act],
             "question": self.question,
             "options": self.options,
-            "correct_action": self.correct_answer,
+            "correct_answer": self.correct_answer,
             "red_flags": [
                 "Unsolicited call requesting sensitive action",
                 "Creation of artificial urgency/panic",
                 "Request for card details or OTP over phone"
-            ]
+            ],
+            "tip": self.tip
         }
 
 _TEMPLATES = [
@@ -82,7 +78,8 @@ _TEMPLATES = [
         ],
         question="The caller claims to be from your bank and wants sensitive details to 'secure' your account. What is your response?",
         options=["Provide details", "Hang up immediately", "Ask for their ID", "Call back officially"],
-        correct_answer="Hang up immediately"
+        correct_answer="Hang up immediately",
+        tip="Banks will never ask for your OTP or CVV over a phone call."
     ),
     CallScenarioTemplate(
         category="KYC Scam",
@@ -109,7 +106,8 @@ _TEMPLATES = [
         ],
         question="A service provider is threatening to block your account unless you share an OTP or download an app. What do you do?",
         options=["Download app", "Disconnect", "Share Aadhaar", "Check official app"],
-        correct_answer="Disconnect"
+        correct_answer="Disconnect",
+        tip="Service providers never ask for OTP or remote app access for KYC updates."
     ),
     CallScenarioTemplate(
         category="E-commerce/Refund",
@@ -136,7 +134,8 @@ _TEMPLATES = [
         ],
         question="A support agent wants you to scan a QR code or click a link to receive a 'refund'. How do you handle this?",
         options=["Click link", "Scan QR code", "Hang up", "Ask for order ID"],
-        correct_answer="Hang up"
+        correct_answer="Hang up",
+        tip="E-commerce sites never ask you to scan a QR code to receive money."
     )
 ]
 
@@ -154,6 +153,7 @@ _SMS_EASY: List[Dict[str, Any]] = [
             "Threat of permanent loss"
         ],
         "correct_action": "Ignore & Delete",
+        "tip": "Always check the URL carefully; official bank sites use their registered domain."
     },
 ]
 
@@ -168,6 +168,7 @@ _SMS_MEDIUM: List[Dict[str, Any]] = [
             "Banks never send unlock links via SMS"
         ],
         "correct_action": "Visit site manually",
+        "tip": "Never use links in SMS to 'unlock' accounts; always use the official app or website."
     },
 ]
 
@@ -182,6 +183,7 @@ _SMS_HARD: List[Dict[str, Any]] = [
             "Token in URL is a phishing technique"
         ],
         "correct_action": "Check app directly",
+        "tip": "Phishers use 'security alerts' to trick you into entering credentials on fake sites."
     },
 ]
 
@@ -198,6 +200,7 @@ _BANK_EASY: List[Dict[str, Any]] = [
             "KYC links in SMS are always fake"
         ],
         "correct_action": "Ignore",
+        "tip": "KYC updates are never done via SMS links; visit your branch or use official portals."
     },
 ]
 
@@ -212,6 +215,7 @@ _BANK_MEDIUM: List[Dict[str, Any]] = [
             "Real banks don't block via SMS links"
         ],
         "correct_action": "Check app",
+        "tip": "If you see a suspicious transaction, call the bank's official number from their website."
     },
 ]
 
@@ -226,6 +230,7 @@ _BANK_HARD: List[Dict[str, Any]] = [
             "Specific IP/Location is used to create panic"
         ],
         "correct_action": "Check login history",
+        "tip": "Scammers use foreign IP addresses to create fear; check your actual login history in-app."
     },
 ]
 
@@ -261,7 +266,10 @@ async def generate_scenarios(difficulty: str = "easy") -> List[Dict[str, Any]]:
         
         # Build payload
         payload = {k: v for k, v in variant.items()
-                  if k not in ("correct_action", "red_flags")}
+                  if k not in ("correct_action", "red_flags", "tip")}
+        
+        if "tip" in variant:
+            payload["tip"] = variant["tip"]
         
         scenarios.append({
             "type": scenario_type.value,

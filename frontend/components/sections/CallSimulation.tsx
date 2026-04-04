@@ -86,18 +86,30 @@ function useRingtone() {
 function useTTS() {
   const speakLine = useCallback((text: string, onEnd: () => void) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
-      setTimeout(onEnd, text.length * 40) // Faster fallback estimation
+      setTimeout(onEnd, text.length * 40)
       return
     }
+
     window.speechSynthesis.cancel()
+    
+    // Safety fallback: if speech synthesis fails or hangs, ensure onEnd is called
+    const safetyTimeout = setTimeout(() => {
+      console.warn('TTS safety timeout triggered');
+      onEnd();
+    }, text.length * 100 + 3000); // 100ms per char + 3s buffer
+
     const utt = new SpeechSynthesisUtterance(text)
-    utt.rate  = 1.2 // Increased speed for realism
+    utt.rate  = 1.2
     utt.pitch = 1.0
     utt.volume = 1
     
+    const handleEnd = () => {
+      clearTimeout(safetyTimeout);
+      onEnd();
+    };
+
     const loadVoicesAndSpeak = () => {
       const voices = window.speechSynthesis.getVoices()
-      // Prefer a natural sounding male voice if available
       const preferred = voices.find(v =>
         v.lang.startsWith('en') && v.name.toLowerCase().includes('google') && v.name.toLowerCase().includes('male')
       ) ?? voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('male')) 
@@ -105,8 +117,8 @@ function useTTS() {
       
       if (preferred) utt.voice = preferred
       
-      utt.onend = onEnd
-      utt.onerror = onEnd
+      utt.onend = handleEnd
+      utt.onerror = handleEnd
       window.speechSynthesis.speak(utt)
     }
 
@@ -129,15 +141,27 @@ function useTTS() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function TranscriptLine({ text }: { text: string }) {
+function TranscriptLine({ text, role }: { text: string, role?: 'user' | 'scammer' }) {
+  const isUser = role === 'user';
   return (
     <div style={{
-      padding: '12px 16px', background: 'rgba(255,23,68,0.06)',
-      border: '1px solid rgba(255,23,68,0.15)', marginBottom: '10px',
+      padding: '12px 16px', 
+      background: isUser ? 'rgba(0,230,118,0.06)' : 'rgba(255,23,68,0.06)',
+      border: isUser ? '1px solid rgba(0,230,118,0.15)' : '1px solid rgba(255,23,68,0.15)', 
+      marginBottom: '10px',
+      alignSelf: isUser ? 'flex-end' : 'flex-start',
       animation: 'fadeSlideUp 0.35s ease both',
+      borderRadius: '4px',
+      maxWidth: '85%'
     }}>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: 'var(--red)', letterSpacing: '3px', marginBottom: '5px' }}>
-        CALLER
+      <div style={{ 
+        fontFamily: 'var(--font-mono)', 
+        fontSize: '9px', 
+        color: isUser ? '#00e676' : 'var(--red)', 
+        letterSpacing: '3px', 
+        marginBottom: '5px' 
+      }}>
+        {isUser ? 'YOU' : 'CALLER'}
       </div>
       <div style={{ fontSize: '15px', color: '#fff', lineHeight: 1.6, fontFamily: 'var(--font-body)' }}>
         &ldquo;{text}&rdquo;
@@ -155,8 +179,9 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
 
   const [callState, setCallState] = useState<CallState>('waiting')
   const [callData, setCallData] = useState<CallData | null>(null)
-  const [transcript, setTranscript] = useState<string[]>([])
-  const [currentLineIndex, setCurrentLineIndex] = useState(-1)
+  const [transcript, setTranscript] = useState<{text: string, role: 'user' | 'scammer'}[]>([])
+  const [suggestedActions, setSuggestedActions] = useState<any[]>([])
+  const [decisionResult, setDecisionResult] = useState<any>(null)
   const [results, setResults] = useState<any>(null)
   const transcriptEndRef = useRef<HTMLDivElement>(null)
 
@@ -174,15 +199,42 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
         setCallData(content as CallData)
         setCallState('incoming')
       }
+    } else if (evt.event === 'call_update') {
+      const { data, player_id: targetPlayerId } = evt;
+      if (targetPlayerId === playerId) {
+        setTranscript(prev => [...prev, { text: data.message, role: 'scammer' }]);
+        setSuggestedActions(data.suggested_actions || []);
+        
+        // Clear previous decision result when new message arrives
+        setDecisionResult(null);
+
+        // Transition to decision state so buttons are shown
+        const transitionToDecision = () => setCallState('decision');
+
+        // Speak the message if we are in an active state
+        if (callState === 'connected' || callState === 'decision') {
+          speakLine(data.message, transitionToDecision);
+        } else {
+          // If we're not connected yet (e.g. still ringing), 
+          // the handleAccept function will trigger the speech of the first message.
+          // However, for subsequent updates, we should ensure we're in 'decision'
+          // if we're not 'incoming'.
+          if (callState !== 'incoming') {
+            transitionToDecision();
+          }
+        }
+      }
+    } else if (evt.event === 'decision_result') {
+      setDecisionResult(evt.data);
     } else if (evt.event === 'round_result') {
       setResults(evt)
       setCallState('ended')
       stopRing()
       cancelTTS()
     }
-  }, [stopRing, cancelTTS])
+  }, [playerId, stopRing, cancelTTS, speakLine, callState])
 
-  const { submitAction } = useGameSocket(roomCode, playerId, handleMessage)
+  const { submitAction, sendUserAction } = useGameSocket(roomCode, playerId, handleMessage)
 
   // Manage ringtone with useEffect for reliability
   useEffect(() => {
@@ -194,42 +246,35 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     return () => stopRing()
   }, [callState, playRing, stopRing])
 
-  // Start voice playback loop
-  const startVoicePlayback = useCallback((index: number, script: string[]) => {
-    if (index >= script.length) {
-      console.log('Script playback complete, moving to decision phase')
-      setCallState('decision')
-      return
-    }
-
-    const line = script[index]
-    setCurrentLineIndex(index)
-    setTranscript(prev => [...prev, line])
-
-    speakLine(line, () => {
-      // Significantly reduced delay between sentences for natural pacing (400ms)
-      setTimeout(() => {
-        startVoicePlayback(index + 1, script)
-      }, 400)
-    })
-  }, [speakLine])
-
   // --- Actions ---
 
-  const handleAnswer = (e: React.MouseEvent, option: string) => {
+  const handleAnswer = useCallback((e: React.MouseEvent, option: any) => {
     e.preventDefault()
     e.stopPropagation()
-    console.log('User selected option:', option)
+    
+    const optionText = typeof option === 'string' ? option : option.option;
+    console.log('User selected option:', optionText)
+    
+    // Update transcript
+    setTranscript(prev => [...prev, { text: optionText, role: 'user' }]);
     
     // Provide immediate visual feedback
     const target = e.currentTarget as HTMLButtonElement
     target.style.background = 'rgba(255,23,68,0.2)'
     target.style.borderColor = 'var(--red)'
     
-    submitAction(option)
-  }
+    sendUserAction(option)
+    setCallState('connected') // Back to connected while waiting for AI response
+    
+    // If the option is "Hang up" or "Block", we also want to end locally
+    if (optionText.toLowerCase().includes('hang up') || optionText.toLowerCase().includes('block')) {
+      stopRing()
+      cancelTTS()
+      setCallState('declined')
+    }
+  }, [sendUserAction, stopRing, cancelTTS])
 
-  const handleAccept = (e: React.MouseEvent) => {
+  const handleAccept = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     console.log('Call Accepted by user click')
@@ -237,16 +282,18 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     stopRing()
     setCallState('connected')
     
-    if (callData) {
-      setTimeout(() => {
-        startVoicePlayback(0, callData.script)
-      }, 1000)
+    // The first message is already in transcript from call_update
+    // Just need to speak it if it hasn't been spoken yet
+    if (transcript.length > 0 && transcript[0].role === 'scammer') {
+      speakLine(transcript[0].text, () => {
+        setCallState('decision')
+      })
     }
     
     submitAction('accept')
-  }
+  }, [stopRing, transcript, speakLine, submitAction])
 
-  const handleDecline = (e: React.MouseEvent) => {
+  const handleDecline = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     console.log('Call Declined by user click')
@@ -255,7 +302,7 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     cancelTTS()
     setCallState('declined')
     submitAction('decline')
-  }
+  }, [stopRing, cancelTTS, submitAction])
 
   // --- Renders ---
 
@@ -369,62 +416,140 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                 </div>
               </div>
               
-              <div style={{ minHeight: '240px', maxHeight: '400px', overflowY: 'auto' }}>
+              <div style={{ minHeight: '240px', maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
                 {transcript.map((line, i) => (
-                  <TranscriptLine key={i} text={line} />
+                  <TranscriptLine key={i} text={line.text} role={line.role} />
                 ))}
                 <div ref={transcriptEndRef} />
               </div>
             </div>
           ) : callState === 'decision' ? (
             <div>
-              <div style={{ 
-                background: 'rgba(255,23,68,0.1)', 
-                border: '1px solid var(--red)', 
-                padding: '24px', 
-                borderRadius: '4px', 
-                marginBottom: '32px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '11px', color: 'var(--red)', letterSpacing: '3px', marginBottom: '12px' }}>SECURITY PROTOCOL</div>
-                <h3 style={{ fontSize: '18px', color: '#fff', lineHeight: 1.5 }}>{callData?.question}</h3>
+              <div style={{ minHeight: '120px', maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
+                {transcript.map((line, i) => (
+                  <TranscriptLine key={i} text={line.text} role={line.role} />
+                ))}
+                <div ref={transcriptEndRef} />
               </div>
+              
+              {decisionResult ? (
+                <div style={{ 
+                  background: 'rgba(255,255,255,0.03)', 
+                  border: '1px solid rgba(255,255,255,0.1)', 
+                  padding: '24px', 
+                  borderRadius: '4px', 
+                  marginBottom: '32px',
+                  animation: 'fadeSlideUp 0.3s ease both'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                    <div>
+                      <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)', letterSpacing: '2px', marginBottom: '4px' }}>YOUR DECISION</div>
+                      <div style={{ fontSize: '16px', color: '#fff', fontWeight: 600 }}>"{decisionResult.selected_option}"</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)', letterSpacing: '2px', marginBottom: '4px' }}>GRADE</div>
+                      <div style={{ 
+                        fontSize: '24px', 
+                        fontWeight: 900, 
+                        color: decisionResult.risk_level === 'low' ? '#00e676' : decisionResult.risk_level === 'medium' ? '#ffeb3b' : '#ff1744'
+                      }}>
+                        {decisionResult.grade}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)', letterSpacing: '2px', marginBottom: '8px' }}>RISK ASSESSMENT</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ 
+                        padding: '4px 12px', 
+                        borderRadius: '20px', 
+                        fontSize: '10px', 
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        background: decisionResult.risk_level === 'low' ? 'rgba(0,230,118,0.1)' : decisionResult.risk_level === 'medium' ? 'rgba(255,235,59,0.1)' : 'rgba(255,23,68,0.1)',
+                        color: decisionResult.risk_level === 'low' ? '#00e676' : decisionResult.risk_level === 'medium' ? '#ffeb3b' : '#ff1744',
+                        border: `1px solid ${decisionResult.risk_level === 'low' ? '#00e676' : decisionResult.risk_level === 'medium' ? '#ffeb3b' : '#ff1744'}`
+                      }}>
+                        {decisionResult.risk_level === 'low' ? '⚠️ LOW RISK' : decisionResult.risk_level === 'medium' ? '⚠️ MEDIUM RISK' : '🚨 HIGH RISK'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)', letterSpacing: '2px', marginBottom: '4px' }}>WHY?</div>
+                    <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>{decisionResult.explanation}</div>
+                  </div>
+
+                  {decisionResult.risk_level !== 'low' && (
+                    <div style={{ padding: '12px', background: 'rgba(0,230,118,0.05)', borderLeft: '3px solid #00e676', borderRadius: '0 4px 4px 0' }}>
+                      <div style={{ fontSize: '9px', color: '#00e676', letterSpacing: '1px', marginBottom: '4px', fontWeight: 700 }}>BETTER ACTION</div>
+                      <div style={{ fontSize: '13px', color: '#fff' }}>{decisionResult.better_action}</div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ 
+                  background: 'rgba(255,23,68,0.1)', 
+                  border: '1px solid var(--red)', 
+                  padding: '24px', 
+                  borderRadius: '4px', 
+                  marginBottom: '32px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '11px', color: 'var(--red)', letterSpacing: '3px', marginBottom: '12px' }}>CHOOSE YOUR RESPONSE</div>
+                  <h3 style={{ fontSize: '18px', color: '#fff', lineHeight: 1.5 }}>The scammer is waiting...</h3>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                {callData?.options.map((opt, i) => (
-                  <button
-                    key={i}
-                    onClick={(e) => handleAnswer(e, opt)}
-                    style={{
-                      background: 'rgba(255,255,255,0.03)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      color: '#fff',
-                      padding: '16px',
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      textAlign: 'center',
-                      letterSpacing: '1px',
-                      pointerEvents: 'all',
-                      position: 'relative',
-                      zIndex: 300
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = 'var(--red)'
-                      e.currentTarget.style.background = 'rgba(255,23,68,0.05)'
-                    }}
-                    onMouseLeave={e => {
-                      if (e.currentTarget.style.background !== 'rgba(255, 23, 68, 0.2)') {
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                      }
-                    }}
-                  >
-                    {opt.toUpperCase()}
-                  </button>
-                ))}
+                {(() => {
+                  const options = [...(suggestedActions.length > 0 ? suggestedActions : (callData?.options || []))];
+                  // Ensure 'Hang up' is always available as a choice
+                  if (!options.some(opt => {
+                    const text = typeof opt === 'string' ? opt : opt.option;
+                    return text.toLowerCase().includes('hang up') || text.toLowerCase().includes('block') || text.toLowerCase().includes('disconnect');
+                  })) {
+                    options.push({ option: 'Hang up', risk_level: 'low', tag: 'safe', explanation: 'Hanging up is always the safest path.', better_action: 'None' });
+                  }
+                  return options.map((opt, i) => {
+                    const text = typeof opt === 'string' ? opt : opt.option;
+                    return (
+                      <button
+                        key={i}
+                        onClick={(e) => handleAnswer(e, opt)}
+                        style={{
+                          background: 'rgba(255,255,255,0.03)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#fff',
+                          padding: '16px',
+                          fontFamily: 'var(--font-body)',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          textAlign: 'center',
+                          letterSpacing: '1px',
+                          pointerEvents: 'all',
+                          position: 'relative',
+                          zIndex: 300
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = 'var(--red)'
+                          e.currentTarget.style.background = 'rgba(255,23,68,0.05)'
+                        }}
+                        onMouseLeave={e => {
+                          if (e.currentTarget.style.background !== 'rgba(255, 23, 68, 0.2)') {
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                          }
+                        }}
+                      >
+                        {text.toUpperCase()}
+                      </button>
+                    );
+                  });
+                })()}
               </div>
             </div>
           ) : callState === 'declined' ? (
