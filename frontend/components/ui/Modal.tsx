@@ -128,4 +128,4 @@ export default function Modal({ isOpen, agentName, difficulty, onClose, onConfir
       </div>
     </div>
   )
-}
+} 

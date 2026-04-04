@@ -1,17 +1,25 @@
+'use client'
+
+import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import CallSimulation from '@/components/sections/CallSimulation'
 import CursorEffect from '@/components/ui/CursorEffect'
- 
-export const metadata = {
-  title: 'Scam Escape AI — Call Simulation',
-  description: 'Easy level: identify and respond to a live phone scam.',
+
+function CallSimulationWrapper() {
+  const params   = useSearchParams()
+  const roomCode = params.get('room')
+  const playerId = params.get('player')
+
+  return <CallSimulation roomCode={roomCode} playerId={playerId} />
 }
- 
+
 export default function CallSimulationPage() {
   return (
     <>
       <CursorEffect />
-      <CallSimulation />
+      <Suspense fallback={null}>
+        <CallSimulationWrapper />
+      </Suspense>
     </>
   )
 }
- 
