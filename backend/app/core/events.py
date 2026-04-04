@@ -6,6 +6,6 @@ log = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    log.info("FraudGuard Arena backend starting up")
+    log.info("🚀 ScamEscape Arena backend starting up")
     yield
-    log.info("FraudGuard Arena backend shutting down")
+    log.info("🛑 ScamEscape Arena backend shutting down")

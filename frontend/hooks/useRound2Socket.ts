@@ -7,10 +7,10 @@ export type Round2Event =
   | { event: 'round2_start'; scammer: { name: string; type: string; has_verified_badge: boolean; profile_picture: string }; difficulty: string; message_count: number }
   | { event: 'identified'; player_id: string; status: string }
   | { event: 'game_started'; status: string }
-  | { event: 'new_message'; message: { id: string; sender: string; content: string; type: string; timestamp: number; has_pressure: boolean } }
+  | { event: 'new_message'; message: { id: string; sender: string; content: string; type: string; timestamp: number; has_pressure: boolean; typing_delay_ms?: number; response_options?: Array<{ label: string; action: string; risk: string }> } }
   | { event: 'pressure_message'; player_id: string; message: string; countdown_text: string; pressure_level: string }
   | { event: 'message_processed'; status: string; behavior_profile?: string; followup_available?: boolean; ai_response?: string }
-  | { event: 'action_processed'; status: string; action: string; impact: any; scam_progress: number; game_result?: any; result?: string }
+  | { event: 'action_processed'; status: string; action: string; impact: any; scam_progress: number; game_result?: any; result?: string; response_message?: string; response_options?: Array<{ label: string; action: string; risk: string }> }
   | { event: 'power_up_used'; status: string; message: string; effectiveness: number }
   | { event: 'error'; message: string }
 
@@ -29,6 +29,7 @@ export interface WhatsAppMessage {
   timestamp: number
   has_pressure: boolean
   is_own: boolean
+  response_options?: Array<{ label: string; action: string; risk: string }>  // 🔥 NEW: Action buttons for messages
 }
 
 export interface WarningInfo {

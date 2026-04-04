@@ -193,11 +193,15 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
   const handleMessage = useCallback((evt: GameEvent) => {
     console.log('CallSimulation message received:', evt)
     if (evt.event === 'start_round') {
+      console.log('🔔 START_ROUND EVENT:', evt.data)
       const { type, content } = evt.data
-      if (type === 'call') {
-        console.log('Round 1 Start: Call simulation detected')
+      console.log(`Type check: type="${type}" (${typeof type}), checking if === "call"`)
+      if (type === 'call' || type?.toString() === 'call') {  // 🔥 Handle both string and enum values
+        console.log('✅ Round 1 Start: Call simulation detected')
         setCallData(content as CallData)
         setCallState('incoming')
+      } else {
+        console.warn(`❌ Type mismatch: expected "call", got "${type}"`)
       }
     } else if (evt.event === 'call_update') {
       const { data, player_id: targetPlayerId } = evt;
@@ -231,16 +235,24 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
       setCallState('ended')
       stopRing()
       cancelTTS()
+    } else if (evt.event === 'round2_ready') {
+      // Auto-navigate to Round 2 when backend signals it's ready
+      console.log('Round 2 is ready! Auto-navigating...')
+      const params = `?room=${roomCode}&player=${playerId}`
+      router.push(`/simulation/whatsapp${params}`)
     }
-  }, [playerId, stopRing, cancelTTS, speakLine, callState])
+  }, [playerId, stopRing, cancelTTS, speakLine, callState, router, roomCode])
 
   const { submitAction, sendUserAction } = useGameSocket(roomCode, playerId, handleMessage)
 
   // Manage ringtone with useEffect for reliability
   useEffect(() => {
+    console.log(`📱 Call State Changed: ${callState}`)
     if (callState === 'incoming') {
+      console.log('🔔 PLAYING RINGTONE...')
       playRing()
     } else {
+      console.log('🔇 STOPPING RINGTONE')
       stopRing()
     }
     return () => stopRing()
@@ -301,7 +313,7 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     stopRing()
     cancelTTS()
     setCallState('declined')
-    submitAction('decline')
+    submitAction('hang_up')
   }, [stopRing, cancelTTS, submitAction])
 
   // --- Renders ---
@@ -488,19 +500,7 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                     </div>
                   )}
                 </div>
-              ) : (
-                <div style={{ 
-                  background: 'rgba(255,23,68,0.1)', 
-                  border: '1px solid var(--red)', 
-                  padding: '24px', 
-                  borderRadius: '4px', 
-                  marginBottom: '32px',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: '11px', color: 'var(--red)', letterSpacing: '3px', marginBottom: '12px' }}>CHOOSE YOUR RESPONSE</div>
-                  <h3 style={{ fontSize: '18px', color: '#fff', lineHeight: 1.5 }}>The scammer is waiting...</h3>
-                </div>
-              )}
+              ) : null}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 {(() => {
@@ -554,9 +554,10 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
             </div>
           ) : callState === 'declined' ? (
             <div style={{ textAlign: 'center', padding: '60px 0' }}>
-              <div style={{ fontSize: '48px', marginBottom: '24px' }}>📵</div>
-              <h3 style={{ fontSize: '24px', color: 'var(--red)', marginBottom: '12px' }}>CALL DECLINED</h3>
-              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Waiting for simulation results...</p>
+              <div style={{ fontSize: '48px', marginBottom: '24px' }}>⚠️</div>
+              <h3 style={{ fontSize: '24px', color: 'var(--red)', marginBottom: '12px' }}>YOU GOT SCAMMED!</h3>
+              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '16px', marginBottom: '20px', fontWeight: 600 }}>Transaction was successful...</p>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Thank you for falling for the scam! Transitioning to Round 2...</p>
             </div>
           ) : (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
@@ -607,41 +608,35 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
               </div>
 
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '32px' }}>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginBottom: '16px', letterSpacing: '1px' }}>PROCEEDING TO NEXT ROUND</div>
-                <button 
-                  onClick={async () => {
-                    try {
-                      // Initialize Round 2 game backend
-                      await fetch('http://localhost:8000/round2/initialize?difficulty=easy', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          room_code: roomCode,
-                          player_ids: [playerId], // Must be array
-                        }),
-                      })
-                      // Navigate to Round 2
-                      const params = `?room=${roomCode}&player=${playerId}`
-                      router.push(`/simulation/whatsapp${params}`)
-                    } catch (err) {
-                      console.error('Failed to initialize Round 2:', err)
-                      router.push('/')
-                    }
-                  }}
-                  style={{ 
-                    background: 'var(--red)', 
-                    color: '#fff', 
-                    border: 'none', 
-                    padding: '16px 32px', 
-                    cursor: 'pointer', 
-                    fontFamily: 'var(--font-mono)', 
-                    fontSize: '12px', 
-                    fontWeight: 700,
-                    letterSpacing: '2px', 
-                    pointerEvents: 'all',
-                    boxShadow: '0 0 20px rgba(255,23,68,0.3)'
-                  }}
-                >NEXT ROUND ▶</button>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginBottom: '16px', letterSpacing: '1px' }}>INITIATING ROUND 2</div>
+                <div style={{
+                  background: 'rgba(0,230,255,0.1)',
+                  border: '1px solid rgba(0,230,255,0.3)',
+                  padding: '20px 24px',
+                  borderRadius: '4px',
+                  textAlign: 'center',
+                  marginBottom: '16px'
+                }}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      border: '3px solid rgba(0,230,255,0.3)',
+                      borderTop: '3px solid #00e5ff',
+                      borderRadius: '50%',
+                      margin: '0 auto',
+                      animation: 'spin 1s linear infinite'
+                    }} />
+                  </div>
+                  <p style={{ color: '#00e5ff', fontSize: '14px', margin: 0 }}>Preparing WhatsApp Simulation...</p>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', margin: '8px 0 0 0' }}>This may take a few seconds</p>
+                </div>
+                <style>{`
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+                `}</style>
               </div>
             </div>
           )}

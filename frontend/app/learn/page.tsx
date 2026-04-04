@@ -220,10 +220,14 @@ export default function LearnPage() {
     setTotalXp(prev => prev + xp)
   }
 
+  const handleEnter = () => {
+    // Navigation for Learn page
+  }
+
   return (
     <>
       <CursorEffect />
-      <Navbar />
+      <Navbar onEnter={handleEnter} />
       <Learn completedModules={completed} onComplete={handleComplete} updateXP={handleUpdateXP} />
       <Footer />
     </>

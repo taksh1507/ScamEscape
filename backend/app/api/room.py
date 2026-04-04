@@ -14,12 +14,16 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 @router.post("/create", response_model=dict)
 def api_create_room(body: CreateRoomRequest):
-    room, player = create_room(body.nickname)
-    return {
-        "room_code": room.room_code,
-        "player_id": player.player_id,
-        "is_leader": True,
-    }
+    try:
+        room, player = create_room(body.nickname)
+        return {
+            "room_code": room.room_code,
+            "player_id": player.player_id,
+            "is_leader": True,
+        }
+    except Exception as e:
+        log.error(f"Error creating room: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create room: {str(e)}")
 
 
 @router.post("/join", response_model=dict)

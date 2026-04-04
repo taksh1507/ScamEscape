@@ -37,6 +37,10 @@ export default function PlayPage() {
     router.push(`/simulation?mode=${selectedMode}&diff=${difficulty}`)
   }
 
+  const handleEnter = () => {
+    // Navigation for Play page
+  }
+
   const activeModeData = MODES.find(m => m.id === selectedMode)
   const activeColor = activeModeData?.color || T.cyan
   const activeDiffData = DIFFICULTIES.find(d => d.id === difficulty)
@@ -44,7 +48,7 @@ export default function PlayPage() {
   return (
     <>
       <CursorEffect />
-      <Navbar />
+      <Navbar onEnter={handleEnter} />
 
       <main style={{ padding: '120px 24px 60px', maxWidth: 900, margin: '0 auto', minHeight: '80vh', position: 'relative', zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 40 }}>

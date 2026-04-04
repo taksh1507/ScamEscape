@@ -289,10 +289,14 @@ const Scanner = () => {
 };
 
 export default function ScannerPage() {
+  const handleEnter = () => {
+    // Navigation for Scanner page
+  }
+
   return (
     <>
       <CursorEffect />
-      <Navbar />
+      <Navbar onEnter={handleEnter} />
       <main style={{ position: 'relative', zIndex: 10 }}>
         <Scanner />
       </main>

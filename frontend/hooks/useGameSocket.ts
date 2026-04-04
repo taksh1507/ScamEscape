@@ -6,6 +6,7 @@ export type GameEvent =
   | { event: 'start_round';   data: { type: string; round_number: number; duration: number; content: any; red_flags: string[] } }
   | { event: 'timer_tick';    round_number: number; remaining: number }
   | { event: 'round_result';  round_number: number; correct_action: string; red_flags: string[]; results: RoundResultEntry[] }
+  | { event: 'round2_ready';  round_number: number; difficulty: string; scammer?: any }
   | { event: 'game_over';     leaderboard: LeaderboardEntry[] }
   | { event: 'player_joined'; player_id: string; nickname: string }
   | { event: 'player_left';   player_id: string; nickname: string }

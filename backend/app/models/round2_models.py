@@ -25,6 +25,7 @@ class WhatsAppMessage:
     fake_media_type: Optional[str] = None  # "payment_screenshot", "tracking", "alert", etc.
     red_flags: List[RedFlag] = field(default_factory=list)
     is_pressure_message: bool = False
+    response_options: List[Dict[str, str]] = field(default_factory=list)  # 🔥 NEW: User action options
     
 
 @dataclass

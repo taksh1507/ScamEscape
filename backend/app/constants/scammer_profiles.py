@@ -282,6 +282,69 @@ SCAMMER_PROFILES: Dict[ScammerType, ScammerProfile] = {
             },
         },
     ),
+    
+    # 🔥 NEW: RELATIVE/FAMILY MEMBER IMPERSONATION - Most convincing because emotional connection
+    ScammerType.RELATIVE_CONTACT: ScammerProfile(
+        name="impersonated_relative",
+        scammer_type=ScammerType.RELATIVE_CONTACT,
+        display_name="Mom",  # Will vary: "Mom", "Dad", "Brother", "Sister", "Uncle", "Cousin"
+        profile_picture_url="https://example.com/family-pic.jpg",
+        has_verified_badge=False,
+        messaging_style="intimate_trusting",  # Acts like a family member
+        common_opening="Beta! Are you free? Need to talk to you about something urgent.",
+        common_problem="Your father had a car accident, he's at the hospital.",
+        common_pressure="We need ₹2,00,000 urgently for medical bills. Please don't ask questions, just send it now!",
+        common_action_request="Transfer money to this account immediately: [fake details] Don't tell anyone!",
+        red_flags=[
+            "Using family relation for emotional manipulation",
+            "Asking for secrecy from other family",
+            "Requesting immediate money transfer",
+            "Playing on emotions and fear",
+            "Money request via text instead of call",
+            "Number doesn't match saved contact",
+        ],
+        typical_flow={
+            ScamStage.BUILD_TRUST: [
+                "Hi beta! How are you? Haven't talked in a while 💕",
+                "I'm calling from the landline, my mobile battery is dead.",
+            ],
+            ScamStage.CREATE_PROBLEM: [
+                "Bad news... your father met with an accident on the way to office.",
+                "He's been admitted to Apollo Hospital with serious injuries.",
+            ],
+            ScamStage.PROVIDE_SOLUTION: [
+                "The doctors say he needs immediate advanced treatment.",
+                "Surgery is needed but it's very expensive - around ₹2,00,000.",
+            ],
+            ScamStage.REQUEST_ACTION: [
+                "Please arrange money urgently. Don't tell your brother, he will panic.",
+                "Transfer to this account: [fake account]. I'll handle everything else.",
+            ],
+            ScamStage.EXECUTE_SCAM: [
+                "Thank you beta! You saved your father's life 🙏",
+                "[Money is stolen, elaborate lie continues]",
+            ],
+        },
+        difficulty_variant={
+            "easy": {
+                "emotional_appeal": 0.5,
+                "family_details_accuracy": 0.2,
+                "language_mismatch": True,
+            },
+            "medium": {
+                "emotional_appeal": 0.8,
+                "family_details_accuracy": 0.6,
+                "language_mismatch": False,
+            },
+            "hard": {
+                "emotional_appeal": 0.95,
+                "family_details_accuracy": 0.9,
+                "uses_personal_info": True,
+                "perfect_language_match": True,
+                "knows_family_names": True,
+            },
+        },
+    ),
 }
 
 

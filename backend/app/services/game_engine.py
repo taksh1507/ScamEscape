@@ -2,7 +2,7 @@
 game_engine.py
 
 Orchestrates the full game lifecycle:
-  lobby → 6 rounds → leaderboard
+  lobby → Round 1 (Call) → Round 2 (WhatsApp) → leaderboard
 """
 
 import asyncio
@@ -13,10 +13,19 @@ from app.state.game_store import get_game, save_game
 from app.state.player_store import get_players_in_room
 from app.services.scenario_manager import generate_scenarios
 from app.services.round_manager import run_round
+from app.services.round2_game_manager import Round2GameManager
 from app.constants.game_constants import TOTAL_ROUNDS
 from app.utils.logger import get_logger
 
 log = get_logger(__name__)
+
+# Global store for Round 2 game managers (accessed by WebSocket handlers)
+_round2_managers: dict = {}
+
+
+def get_round2_manager(room_code: str) -> Round2GameManager:
+    """Retrieve a Round 2 manager instance"""
+    return _round2_managers.get(room_code)
 
 
 async def start_game(room_code: str, broadcast_fn, difficulty: str = "easy") -> bool:
@@ -54,29 +63,53 @@ async def start_game(room_code: str, broadcast_fn, difficulty: str = "easy") -> 
 
     log.info(f"Game started in room {room_code} — difficulty: {difficulty}")
 
-    # ── Run rounds ────────────────────────────────────────────────────────────
-    for round_number in range(1, TOTAL_ROUNDS + 1):
-        room = get_room(room_code)
-        if not room:
-            break
-        room.current_round = round_number
-        save_room(room)
-
-        await run_round(room_code, round_number, broadcast_fn)
-
-    # ── After Round 1, keep game active for Round 2 ──────────────────────────
-    log.info(f"Round 1 complete in {room_code}. Waiting for Round 2 or timeout...")
-    
-    # Wait up to 30 minutes for Round 2 to complete
-    # The game stays PLAYING status during this time
+    # ── Run Round 1 (Call Simulation) ──────────────────────────────────────────
     room = get_room(room_code)
     if room:
-        room.status = RoomStatus.PLAYING  # Don't finish yet - Round 2 might run
+        room.current_round = 1
         save_room(room)
     
-    await asyncio.sleep(1800)  # 30 minute timeout
+    await run_round(room_code, 1, broadcast_fn)
+    log.info(f"Round 1 complete in {room_code}. Initializing Round 2...")
+
+    # ── Initialize Round 2 (WhatsApp) ──────────────────────────────────────────
+    players = get_players_in_room(room_code)
+    player_ids = [p.player_id for p in players]
+    
+    try:
+        manager = Round2GameManager(room_code, difficulty)
+        init_result = await manager.initialize_game(player_ids, None)
+        _round2_managers[room_code] = manager
+        
+        # Update room status and current round
+        room = get_room(room_code)
+        if room:
+            room.current_round = 2
+            room.status = RoomStatus.PLAYING
+            save_room(room)
+        
+        # Broadcast Round 2 is ready
+        await broadcast_fn(room_code, {
+            "event": "round2_ready",
+            "round_number": 2,
+            "difficulty": difficulty,
+            "scammer": init_result.get("scammer", {}),
+        })
+        
+        log.info(f"Round 2 initialized for room {room_code}")
+    except Exception as e:
+        log.error(f"Failed to initialize Round 2: {str(e)}")
+        await broadcast_fn(room_code, {
+            "event": "error",
+            "message": "Failed to start Round 2",
+        })
+    
+    # ── Wait for Round 2 to complete (up to 15 minutes) ──────────────────────────
+    await asyncio.sleep(900)  # 15 minute timeout for Round 2
+    
     
     # ── Finish ────────────────────────────────────────────────────────────────
+    log.info(f"Game finished in {room_code}")
     room = get_room(room_code)
     if room:
         room.status = RoomStatus.FINISHED

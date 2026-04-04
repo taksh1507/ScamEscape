@@ -71,7 +71,7 @@ async def run_adaptive_call_round(room_code: str, round_number: int, broadcast_f
     await broadcast_fn(room_code, {
         "event": "start_round",
         "data": {
-            "type": ScenarioType.CALL,
+            "type": ScenarioType.CALL.value,  # 🔥 FIX: Ensure enum is converted to string
             "round_number": round_number,
             "duration": 120, # 2 min max
             "content": {
@@ -86,13 +86,23 @@ async def run_adaptive_call_round(room_code: str, round_number: int, broadcast_f
 
     # Initial Scammer Message for each player
     for p in players:
-        # Generate initial response
-        ai_resp = await generate_phase_response(
-            phase=CallPhase.AUTHORITY,
-            difficulty=game.difficulty,
-            profile=scenario_data["payload"]["caller"],
-            history=[]
-        )
+        # 🔥 CRITICAL FIX: Use the actual scenario script, not a generic phase response
+        script_lines = scenario_data["payload"].get("script", [])
+        initial_message = script_lines[0] if script_lines else "Hello, this is a call."
+        
+        # Convert simple string options to proper action objects with risk_level
+        raw_options = scenario_data["payload"].get("options", [])
+        suggested_actions = []
+        risk_levels = ["high", "medium", "low", "medium"]  # Assign risk levels to options
+        for idx, opt_text in enumerate(raw_options):
+            risk_level = risk_levels[idx % len(risk_levels)]
+            suggested_actions.append({
+                "option": opt_text,
+                "risk_level": risk_level,
+                "tag": "safe" if risk_level == "low" else "risky" if risk_level == "high" else "cautious",
+                "explanation": f"This is a {risk_level} risk action.",
+                "better_action": "Seek independent verification."
+            })
         
         # Track that they were called
         game.round_actions[p.player_id] = "connected"
@@ -103,8 +113,8 @@ async def run_adaptive_call_round(room_code: str, round_number: int, broadcast_f
             "player_id": p.player_id,
             "data": {
                 "phase": CallPhase.AUTHORITY,
-                "message": ai_resp["message"],
-                "suggested_actions": ai_resp["suggested_actions"],
+                "message": initial_message,  # ← Use real script, not generic phase response
+                "suggested_actions": suggested_actions,  # ← Use properly formatted options
                 "caller": scenario_data["payload"]["caller"]
             }
         })

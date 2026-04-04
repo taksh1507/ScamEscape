@@ -3,8 +3,8 @@ import asyncio
 import time
 from app.schemas.action_schema import SubmitActionRequest
 from app.services.game_engine import start_game, _build_leaderboard
-from app.state.rooms_store import get_room
-from app.state.game_store import get_game
+from app.state.rooms_store import get_room, save_room, delete_room
+from app.state.game_store import get_game, delete_game
 from app.state.player_store import get_player
 from app.core.websocket import register, unregister, broadcast_to_room, send_to_player
 from app.models.room import RoomStatus
@@ -34,6 +34,34 @@ def api_leaderboard(room_code: str):
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     return {"leaderboard": _build_leaderboard(room_code.upper())}
+
+
+@router.post("/close/{room_code}")
+def close_room(room_code: str):
+    """🔥 Close a game room and clean up resources"""
+    room_code = room_code.upper()
+    room = get_room(room_code)
+    
+    if not room:
+        log.warning(f"Attempt to close non-existent room: {room_code}")
+        return {"status": "ok", "message": f"Room {room_code} not found"}
+    
+    # Update room status to finished
+    room.status = RoomStatus.FINISHED
+    save_room(room)
+    
+    # Clean up game data
+    try:
+        delete_game(room_code)
+        log.info(f"🔥 [ROOM CLOSED] Room {room_code} closed and cleaned up")
+    except Exception as e:
+        log.warning(f"Failed to delete game data for room {room_code}: {e}")
+    
+    return {
+        "status": "ok",
+        "message": f"Room {room_code} closed successfully",
+        "room_code": room_code
+    }
 
 
 # ─── WebSocket ────────────────────────────────────────────────────────────────
@@ -66,6 +94,13 @@ async def websocket_endpoint(ws: WebSocket, room_code: str, player_id: str):
                     if player_id not in game.round_actions:
                         game.round_actions[player_id] = action
                         game.round_action_times[player_id] = time.time()
+                        
+                        # 🔥 CRITICAL: End the call immediately if player hangs up
+                        if action.lower() in ["hang_up", "decline", "block"]:
+                            from app.constants.scenario_types import CallPhase
+                            if player_id in game.call_states:
+                                game.call_states[player_id].phase = CallPhase.FAILURE
+                        
                         from app.state.game_store import save_game
                         save_game(game)
                         await send_to_player(ws, {"event": "action_received", "action": action})
@@ -134,7 +169,9 @@ async def websocket_endpoint(ws: WebSocket, room_code: str, player_id: str):
                             difficulty=game.difficulty,
                             profile=scenario_data["payload"]["caller"],
                             last_action=action_text,
-                            history=history
+                            history=history,
+                            scammer_type=scenario_data["payload"].get("caller", "Unknown"),  # NEW: Scenario type for context
+                            scenario_details=scenario_data["payload"]  # NEW: Full scenario context
                         )
                         
                         # Ensure 'Hang up' is always available if not terminal

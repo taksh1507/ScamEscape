@@ -1,20 +1,23 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shield, Zap, Target, Crown, Search, Activity, ChevronRight, Plus, RotateCcw, AlertTriangle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Shield, Zap, Target, Crown, Search, Activity, ChevronRight, Plus, RotateCcw, AlertTriangle, ArrowRight, Play } from 'lucide-react';
+import { NAV_LINKS } from '@/lib/constants';
 
-// ─── Design Tokens (single source of truth) ─────────────────────────────────
+// ─── Design Tokens (same as main website globals.css) ─────────────────────
+// Uses CSS variables for consistency across the entire app
 const TOKEN = {
-  red:      '#ff1744',
+  red:      'var(--red)',      // #ff1744
   redDim:   '#d6133a',
   redGlow:  'rgba(255,23,68,0.4)',
   redFaint: 'rgba(255,23,68,0.08)',
-  cyan:     '#00e5ff',
-  bg:       '#050509',
-  bgNav:    'rgba(5,5,9,0.90)',
-  card:     'rgba(255,255,255,0.05)',
-  border:   'rgba(255,255,255,0.10)',
-  muted:    '#6b7280',
+  cyan:     'var(--cyan)',      // #00e5ff
+  bg:       'var(--dark)',      // #050509
+  bgNav:    'rgba(5,5,9,0.95)', // Slightly darker than main nav
+  card:     'var(--card)',      // #12121f
+  border:   'var(--border)',    // rgba(255, 23, 68, 0.25)
+  muted:    'var(--muted)',     // #7070a0
   white:    '#ffffff',
 } as const;
 
@@ -83,39 +86,97 @@ interface Agent {
   id: string;
   codename: string;
   score: number;
+  round1_score?: number;
+  round2_score?: number;
   accuracy: number;
   difficulty: string;
   timestamp: number;
   rank?: number;
 }
 
-export default function Leaderboard() {
+interface LeaderboardProps {
+  roomCode?: string | null;
+  playerId?: string | null;
+  isRound2Game?: boolean;
+}
+
+export default function Leaderboard({ roomCode, playerId, isRound2Game = false }: LeaderboardProps) {
+  const router = useRouter();
   const [agents,       setAgents]       = useState<Agent[]>([]);
   const [filter,       setFilter]       = useState('All');
   const [searchQuery,  setSearchQuery]  = useState('');
   const [hoveredId,    setHoveredId]    = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [showResults, setShowResults]   = useState(isRound2Game);
+  const [currentPlayerResult, setCurrentPlayerResult] = useState<any>(null);
 
   useEffect(() => { setAgents(LeaderboardService.load()); }, []);
   useEffect(() => { if (agents.length > 0) LeaderboardService.save(agents); }, [agents]);
 
+  // 🔥 Load game results from localStorage for Round 2 games
+  useEffect(() => {
+    if (isRound2Game) {
+      try {
+        const leaderboardData = localStorage.getItem('leaderboard_scores');
+        if (leaderboardData) {
+          const gameResults = JSON.parse(leaderboardData);
+          console.log('🔥 Loaded game results from localStorage:', gameResults);
+          
+          // Find current player result
+          const current = gameResults.find((r: any) => r.playerId === playerId);
+          if (current) {
+            setCurrentPlayerResult(current);
+          }
+          
+          // Merge game results with existing agents
+          setAgents((prevAgents) => {
+            const updated = [...prevAgents];
+            
+            gameResults.forEach((result: any) => {
+              const existingIndex = updated.findIndex((a) => a.id === result.playerId);
+              
+              if (existingIndex >= 0) {
+                // Update existing agent with new scores and codename
+                updated[existingIndex] = {
+                  ...updated[existingIndex],
+                  score: result.total_score,
+                  codename: result.codename || updated[existingIndex].codename,
+                  round1_score: result.round1_score,
+                  round2_score: result.round2_score,
+                  timestamp: new Date(result.timestamp).getTime(),
+                };
+              } else {
+                // Create new agent entry from game result
+                updated.push({
+                  id: result.playerId,
+                  codename: result.codename || `PLAYER_${result.playerId.substring(0, 8).toUpperCase()}`,
+                  score: result.total_score,
+                  round1_score: result.round1_score,
+                  round2_score: result.round2_score,
+                  accuracy: (result.round2_score > 0 ? 95 : 0), // Assume 95% accuracy if not scammed
+                  difficulty: 'Medium',
+                  timestamp: new Date(result.timestamp).getTime(),
+                });
+              }
+            });
+            
+            return updated;
+          });
+        }
+      } catch (error) {
+        console.error('Error loading game results:', error);
+      }
+    }
+  }, [isRound2Game, playerId]);
+
   const addMockScore = () => {
-    setIsSimulating(true);
-    setTimeout(() => {
-      const diffs   = ['Easy', 'Medium', 'Hard'];
-      const diff    = diffs[Math.floor(Math.random() * diffs.length)];
-      const correct = Math.floor(Math.random() * 10) + 5;
-      const wrong   = Math.floor(Math.random() * 3);
-      setAgents(prev => [...prev, {
-        id:         crypto.randomUUID(),
-        codename:   `AGENT_${Math.floor(Math.random() * 9000) + 1000}`,
-        score:      LeaderboardService.calculateScore(correct, wrong, diff),
-        accuracy:   parseFloat(((correct / (correct + wrong)) * 100).toFixed(1)),
-        difficulty: diff,
-        timestamp:  Date.now(),
-      }]);
-      setIsSimulating(false);
-    }, 800);
+    // Navigate to play page to join game
+    router.push('/play');
+  };
+
+  const startNewGame = () => {
+    // Navigate to play page to join game
+    router.push('/play');
   };
 
   const resetLeaderboard = () => {
@@ -140,7 +201,7 @@ export default function Leaderboard() {
       minHeight:  '100vh',
       background: TOKEN.bg,
       color:      TOKEN.white,
-      fontFamily: "'Inter', sans-serif",
+      fontFamily: 'var(--font-body)',
       overflowX:  'hidden',
     } as React.CSSProperties,
 
@@ -178,6 +239,7 @@ export default function Leaderboard() {
     } as React.CSSProperties,
 
     navLogoText: {
+      fontFamily:    'var(--font-head)',
       fontSize:      '20px',
       fontWeight:    900,
       fontStyle:     'italic',
@@ -231,7 +293,7 @@ export default function Leaderboard() {
     // Main content
     main: {
       maxWidth: '900px',
-      margin:   '0 auto',
+      margin:   '72px auto 0 auto',
       padding:  '48px 24px',
       position: 'relative' as const,
     } as React.CSSProperties,
@@ -267,6 +329,7 @@ export default function Leaderboard() {
     }),
 
     h1: {
+      fontFamily:    'var(--font-head)',
       fontSize:      'clamp(40px, 8vw, 72px)',
       fontWeight:    900,
       fontStyle:     'italic',
@@ -501,26 +564,13 @@ export default function Leaderboard() {
 
   return (
     <>
-      {/* ── Global styles: tokens + animations + resets ──────────────────── */}
+      {/* ── Global styles: use shared CSS variables from globals.css ──────── */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        :root {
-          --red:       ${TOKEN.red};
-          --red-glow:  ${TOKEN.redGlow};
-          --red-faint: ${TOKEN.redFaint};
-          --cyan:      ${TOKEN.cyan};
-          --bg:        ${TOKEN.bg};
-          --border:    ${TOKEN.border};
-          --muted:     ${TOKEN.muted};
-        }
-
+        /* Use fonts from main website */
         body {
-          background: var(--bg);
-          font-family: 'Inter', sans-serif;
-          color: #fff;
+          background: var(--dark);
+          font-family: var(--font-body), sans-serif;
+          color: var(--text);
         }
 
         /* Selection */
@@ -528,7 +578,7 @@ export default function Leaderboard() {
 
         /* Scrollbar */
         ::-webkit-scrollbar       { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-track { background: var(--dark); }
         ::-webkit-scrollbar-thumb { background: rgba(255,23,68,0.4); border-radius: 3px; }
 
         /* Animations */
@@ -607,48 +657,187 @@ export default function Leaderboard() {
       <div className="crt-overlay" />
       <div className="scan-line" />
 
+      {/* 🔥 ROUND 2 RESULTS SCREEN - Shows before leaderboard */}
+      {showResults && isRound2Game && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(5, 5, 9, 0.95)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999,
+          backdropFilter: 'blur(6px)',
+        }}>
+          <div style={{
+            background: 'var(--card)',
+            border: '2px solid var(--red)',
+            borderRadius: '16px',
+            padding: '48px 32px',
+            maxWidth: '600px',
+            width: '90%',
+            boxShadow: '0 0 60px rgba(255,23,68,0.4)',
+            animation: 'slideUp 0.4s ease-out',
+            textAlign: 'center',
+          }}>
+            {/* Icon */}
+            <div style={{ fontSize: '80px', marginBottom: '24px', animation: 'pulse 2s infinite' }}>
+              🎮
+            </div>
+
+            {/* Title */}
+            <h2 style={{
+              fontFamily: 'var(--font-head)',
+              fontSize: '36px',
+              fontWeight: 'bold',
+              color: 'var(--cyan)',
+              margin: '0 0 16px',
+              letterSpacing: '2px',
+              textTransform: 'uppercase',
+            }}>
+              ROUND 2 COMPLETE!
+            </h2>
+
+            {/* Info Box */}
+            <div style={{
+              background: 'rgba(255,23,68,0.1)',
+              border: '2px solid var(--red)',
+              borderRadius: '12px',
+              padding: '32px',
+              marginBottom: '32px',
+            }}>
+              <p style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '14px',
+                color: 'var(--cyan)',
+                margin: '0 0 16px',
+                letterSpacing: '1px',
+              }}>
+                ✅ YOU SUCCESSFULLY IDENTIFIED & REPORTED THE SCAMMER
+              </p>
+              
+              <div style={{
+                fontSize: '48px',
+                fontWeight: 'bold',
+                color: 'var(--red)',
+                margin: '0 0 16px',
+              }}>
+                +40 PTS
+              </div>
+
+              <p style={{
+                color: 'rgba(255,255,255,0.7)',
+                margin: '0',
+                fontSize: '14px',
+                lineHeight: 1.6,
+              }}>
+                Your quick thinking prevented scams and protected others. You're a true ScamEscape agent! 🛡️
+              </p>
+            </div>
+
+            {/* Continue Button */}
+            <button
+              onClick={() => setShowResults(false)}
+              style={{
+                background: 'linear-gradient(135deg, var(--red), #ff5577)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '16px 32px',
+                fontFamily: 'var(--font-head)',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                boxShadow: '0 0 20px rgba(255,23,68,0.3)',
+              }}
+              onMouseEnter={e => {
+                (e.target as HTMLButtonElement).style.boxShadow = '0 0 40px rgba(255,23,68,0.6)'
+                ;(e.target as HTMLButtonElement).style.transform = 'translateY(-2px)'
+              }}
+              onMouseLeave={e => {
+                (e.target as HTMLButtonElement).style.boxShadow = '0 0 20px rgba(255,23,68,0.3)'
+                ;(e.target as HTMLButtonElement).style.transform = 'translateY(0)'
+              }}
+            >
+              🏆 VIEW LEADERBOARD
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={S.page}>
 
         {/* ── Navbar ───────────────────────────────────────────────────────── */}
-        <nav style={S.nav}>
-          <div style={S.navLogo}>
-            <div style={S.navLogoIcon}>
-              <Shield size={18} color="#fff" />
+        <nav style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+          padding: '0 40px', height: '72px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: '1px solid var(--border)',
+          background: 'rgba(5,5,9,0.85)',
+          backdropFilter: 'blur(12px)',
+        }}>
+          {/* Logo */}
+          <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
+            <div style={{
+              width: '40px', height: '40px',
+              border: '2px solid var(--red)', borderRadius: '8px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(255,23,68,0.08)',
+            }}>
+              <Shield size={22} color="var(--red)" />
             </div>
-            <span style={S.navLogoText}>
-              FRAUD<span style={{ color: TOKEN.red }}>GUARD</span>
+            <span style={{ fontFamily: 'var(--font-head)', fontSize: '24px', letterSpacing: '3px', color: '#fff' }}>
+              SCAM<span style={{ color: 'var(--red)' }}>ESCAPE</span>
             </span>
+          </a>
+
+          {/* Nav Links */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '36px' }}>
+            {NAV_LINKS.map(link => (
+              <a
+                key={link.label}
+                href={link.href}
+                style={{
+                  color: 'var(--muted)', textDecoration: 'none',
+                  fontSize: '14px', fontWeight: 600,
+                  letterSpacing: '2px', textTransform: 'uppercase',
+                  transition: 'color 0.3s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--muted)')}
+              >
+                {link.label}
+              </a>
+            ))}
           </div>
 
-          <div style={S.navActions}>
-            <button
-              className="btn-primary"
-              onClick={addMockScore}
-              disabled={isSimulating}
-              style={S.btnPrimary}
-            >
-              {isSimulating
-                ? <Activity size={12} className="animate-spin" />
-                : <Plus size={12} />
+          {/* CTA Button */}
+          <button
+            onClick={startNewGame}
+            style={{
+              background: 'var(--red)', color: '#fff', border: 'none',
+              padding: '10px 24px', fontFamily: 'var(--font-body)',
+              fontSize: '13px', fontWeight: 700, letterSpacing: '2px',
+              textTransform: 'uppercase', cursor: 'pointer',
+              clipPath: 'polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)',
+              boxShadow: '0 0 20px rgba(255,23,68,0.3)',
+              transition: 'background 0.3s, box-shadow 0.3s',
+            }}
+            disabled={isSimulating}
+            onMouseEnter={e => { 
+              if (!isSimulating) {
+                (e.currentTarget as HTMLButtonElement).style.background = '#ff5577'
               }
-              New Simulation
-            </button>
-            <button
-              className="btn-ghost"
-              onClick={resetLeaderboard}
-              title="Reset Data"
-              style={S.btnGhost}
-            >
-              <RotateCcw size={16} />
-            </button>
-            <div style={S.avatar}>
-              <img
-                src="https://api.dicebear.com/7.x/pixel-art/svg?seed=Felix"
-                alt="avatar"
-                style={{ width: '100%', height: '100%' }}
-              />
-            </div>
-          </div>
+            }}
+            onMouseLeave={e => { 
+              (e.currentTarget as HTMLButtonElement).style.background = 'var(--red)' 
+            }}
+          >
+            Play Now
+          </button>
         </nav>
 
         {/* ── Main ─────────────────────────────────────────────────────────── */}
@@ -671,7 +860,7 @@ export default function Leaderboard() {
               <span style={S.h1Accent}>BOARD</span>
             </h1>
 
-            <p style={S.subtitle}>Top Agents Ranked by Fraud Detection Skill</p>
+            <p style={S.subtitle}>Top Agents Ranked by Scam Detection Skill</p>
           </header>
 
           {/* Filter bar */}
@@ -700,6 +889,161 @@ export default function Leaderboard() {
               />
             </div>
           </div>
+
+          {/* 🔥 JOIN THE GAME CTA - Prominent Section */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(255,23,68,0.15) 0%, rgba(255,100,100,0.08) 100%)',
+            border: `2px solid ${TOKEN.red}`,
+            borderRadius: '16px',
+            padding: '32px 24px',
+            marginBottom: '32px',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            {/* Glow effect */}
+            <div style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'radial-gradient(circle at center, rgba(255,23,68,0.1), transparent)',
+              pointerEvents: 'none',
+            }} />
+            
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                <Play size={24} style={{ color: TOKEN.red, fill: TOKEN.red }} />
+                <h2 style={{
+                  fontSize: '28px',
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  letterSpacing: '-0.02em',
+                  margin: 0,
+                }}>
+                  Ready to Test Your Skills?
+                </h2>
+              </div>
+              
+              <p style={{
+                fontSize: '14px',
+                color: TOKEN.muted,
+                marginBottom: '20px',
+                maxWidth: '600px',
+              }}>
+                Join the game and compete against other agents. Spot the scams, survive the schemes, and climb the leaderboard. Every challenge earns you points and reputation.
+              </p>
+              
+              <button
+                onClick={startNewGame}
+                style={{
+                  background: `linear-gradient(135deg, ${TOKEN.red}, #ff5577)`,
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '16px 32px',
+                  fontSize: '14px',
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s',
+                  boxShadow: `0 0 20px ${TOKEN.redGlow}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                }}
+                onMouseEnter={e => {
+                  (e.target as HTMLButtonElement).style.boxShadow = `0 0 40px ${TOKEN.redGlow}`;
+                  (e.target as HTMLButtonElement).style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={e => {
+                  (e.target as HTMLButtonElement).style.boxShadow = `0 0 20px ${TOKEN.redGlow}`;
+                  (e.target as HTMLButtonElement).style.transform = 'translateY(0)';
+                }}
+              >
+                <Play size={18} />
+                Join the Game Now
+                <ArrowRight size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Current Game Result (if coming from game completion) */}
+          {currentPlayerResult && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(0,230,118,0.15) 0%, rgba(0,100,50,0.08) 100%)',
+              border: `2px solid #00e676`,
+              borderRadius: '16px',
+              padding: '24px',
+              marginBottom: '32px',
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0, bottom: 0,
+                background: 'radial-gradient(circle at center, rgba(0,230,118,0.1), transparent)',
+                pointerEvents: 'none',
+              }} />
+              
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <h3 style={{
+                  fontSize: '16px',
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.10em',
+                  marginBottom: '16px',
+                  color: '#00e676',
+                }}>
+                  ✅ Your Recent Game Result
+                </h3>
+                
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                  gap: '16px',
+                }}>
+                  <div>
+                    <p style={{ fontSize: '10px', color: TOKEN.muted, textTransform: 'uppercase', marginBottom: '4px' }}>
+                      Total Score
+                    </p>
+                    <p style={{
+                      fontSize: '24px',
+                      fontWeight: 900,
+                      color: '#00e676',
+                    }}>
+                      {currentPlayerResult.total_score}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p style={{ fontSize: '10px', color: TOKEN.muted, textTransform: 'uppercase', marginBottom: '4px' }}>
+                      Round 1
+                    </p>
+                    <p style={{
+                      fontSize: '20px',
+                      fontWeight: 900,
+                      color: '#00e676',
+                    }}>
+                      {currentPlayerResult.round1_score}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p style={{ fontSize: '10px', color: TOKEN.muted, textTransform: 'uppercase', marginBottom: '4px' }}>
+                      Round 2
+                    </p>
+                    <p style={{
+                      fontSize: '20px',
+                      fontWeight: 900,
+                      color: currentPlayerResult.round2_score === 0 ? '#ff5252' : '#00e676',
+                    }}>
+                      {currentPlayerResult.round2_score}
+                      {currentPlayerResult.round2_score === 0 && ' (Scammed)'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Rows */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -771,6 +1115,17 @@ export default function Leaderboard() {
                     {agent.score.toLocaleString()}
                     <span style={S.scoreUnit}>XP</span>
                   </div>
+                  {/* Show Round 1 and Round 2 breakdown if available */}
+                  {(agent.round1_score !== undefined || agent.round2_score !== undefined) && (
+                    <div style={{ fontSize: '10px', color: TOKEN.muted, marginTop: '4px', lineHeight: 1.3 }}>
+                      {agent.round1_score !== undefined && (
+                        <div>R1: <span style={{ color: '#00e676' }}>{agent.round1_score}</span></div>
+                      )}
+                      {agent.round2_score !== undefined && (
+                        <div>R2: <span style={{ color: agent.round2_score === 0 ? '#ff5252' : '#00e676' }}>{agent.round2_score}</span></div>
+                      )}
+                    </div>
+                  )}
                   <div style={S.scoreDate}>
                     {new Date(agent.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                   </div>
@@ -809,57 +1164,67 @@ export default function Leaderboard() {
           </div>
 
           {/* User card */}
-          <div style={S.userCard}>
-            {/* Top shimmer line */}
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
-              background: `linear-gradient(90deg, transparent, rgba(255,23,68,0.5), transparent)`,
-            }} />
+          {(() => {
+            const currentAgent = playerId ? agents.find(a => a.id === playerId) : null;
+            const userRank = currentAgent?.rank || agents.length + 1;
+            const userCodename = currentAgent?.codename || 'NEW_AGENT';
+            const userScore = currentAgent?.score || 0;
+            const userAccuracy = currentAgent?.accuracy || 0;
+            
+            return (
+              <div style={S.userCard}>
+                {/* Top shimmer line */}
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+                  background: `linear-gradient(90deg, transparent, rgba(255,23,68,0.5), transparent)`,
+                }} />
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ display: 'block', fontSize: '9px', color: TOKEN.muted, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 700 }}>
-                  User Rank
-                </span>
-                <span style={{ fontSize: '40px', fontWeight: 900, fontStyle: 'italic', textShadow: `0 0 12px ${TOKEN.red}` }}>
-                  #42
-                </span>
-              </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <span style={{ display: 'block', fontSize: '9px', color: TOKEN.muted, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 700 }}>
+                      Your Rank
+                    </span>
+                    <span style={{ fontSize: '40px', fontWeight: 900, fontStyle: 'italic', textShadow: `0 0 12px ${TOKEN.red}` }}>
+                      #{userRank}
+                    </span>
+                  </div>
 
-              <div style={{ width: '1px', height: '48px', background: TOKEN.border }} />
+                  <div style={{ width: '1px', height: '48px', background: TOKEN.border }} />
 
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '18px', fontWeight: 900, fontStyle: 'italic', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                    GHOST_USER_7
-                  </span>
-                  <span
-                    className="animate-pulse"
-                    style={{
-                      padding: '2px 8px', borderRadius: '4px',
-                      background: TOKEN.red, color: '#fff',
-                      fontSize: '8px', fontWeight: 900,
-                      textTransform: 'uppercase', letterSpacing: '0.10em',
-                    }}
-                  >
-                    Live
-                  </span>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '18px', fontWeight: 900, fontStyle: 'italic', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                        {userCodename}
+                      </span>
+                      <span
+                        className="animate-pulse"
+                        style={{
+                          padding: '2px 8px', borderRadius: '4px',
+                          background: TOKEN.red, color: '#fff',
+                          fontSize: '8px', fontWeight: 900,
+                          textTransform: 'uppercase', letterSpacing: '0.10em',
+                        }}
+                      >
+                        Active
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '10px', color: TOKEN.muted, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+                      Score: <span style={{ color: TOKEN.white, fontWeight: 700 }}>{userScore.toLocaleString()}</span>
+                      {' '}— Accuracy: <span style={{ color: TOKEN.cyan, fontWeight: 700 }}>{userAccuracy}%</span>
+                    </p>
+                  </div>
                 </div>
-                <p style={{ fontSize: '10px', color: TOKEN.muted, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-                  Current Accuracy: <span style={{ color: TOKEN.white }}>84.2%</span>
-                  {' '}— Rank Up in: <span style={{ color: TOKEN.cyan, fontWeight: 700 }}>140 XP</span>
-                </p>
-              </div>
-            </div>
 
-            <button
-              className="btn-white"
-              onClick={addMockScore}
-              style={S.btnWhite}
-            >
-              Start New Scan
-            </button>
-          </div>
+                <button
+                  className="btn-white"
+                  onClick={startNewGame}
+                  style={S.btnWhite}
+                >
+                  🎮 Start New Game
+                </button>
+              </div>
+            );
+          })()}
 
         </main>
       </div>

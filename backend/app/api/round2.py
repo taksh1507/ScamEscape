@@ -6,17 +6,30 @@ Handles all Round 2 gameplay endpoints
 from fastapi import APIRouter, WebSocket, Query, HTTPException, Body
 from typing import Optional, Dict, Any, List
 import json
+import time
 
 from app.services.round2_game_manager import Round2GameManager
+from app.services.game_engine import get_round2_manager
 from app.constants.whatsapp_types import ScammerType, PowerUp
+from app.core.websocket import broadcast_to_room
 from app.utils.logger import get_logger
 
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/round2", tags=["round2"])
 
-# Store active games by room_code
+# Legacy store for direct endpoint initialization (keep for backwards compatibility)
 active_games: Dict[str, Round2GameManager] = {}
+
+
+def get_manager(room_code: str) -> Optional[Round2GameManager]:
+    """Get a Round 2 manager - first check game_engine store, then fallback to active_games"""
+    # Try game_engine's store first (initialized by game flow)
+    manager = get_round2_manager(room_code)
+    if manager:
+        return manager
+    # Fallback to direct initialization
+    return active_games.get(room_code)
 
 
 @router.post("/initialize")
@@ -65,7 +78,8 @@ async def websocket_round2_gameplay(websocket: WebSocket, room_code: str):
     
     await websocket.accept()
     
-    if room_code not in active_games:
+    manager = get_manager(room_code)
+    if not manager:
         await websocket.send_json({
             "error": "Game not initialized",
             "room_code": room_code
@@ -73,7 +87,6 @@ async def websocket_round2_gameplay(websocket: WebSocket, room_code: str):
         await websocket.close()
         return
     
-    manager = active_games[room_code]
     player_id = None
     
     try:
@@ -104,9 +117,34 @@ async def websocket_round2_gameplay(websocket: WebSocket, room_code: str):
                     continue
                 message = data.get("message", "")
                 result = await manager.handle_player_message(player_id, message)
+                
+                # Get AI response and broadcast it as a new_message event
+                ai_response = result.get("ai_response", {})
+                if ai_response and isinstance(ai_response, dict):
+                    # Get the message and typing delay from AI response
+                    ai_message = ai_response.get("message", "")
+                    typing_delay = ai_response.get("typing_delay_ms", 1000)
+                    
+                    if ai_message:
+                        # 🔥 Broadcast AI response as a new_message event with typing delay
+                        await broadcast_to_room(room_code, {
+                            "event": "new_message",
+                            "message": {
+                                "id": f"ai-{int(time.time() * 1000)}",
+                                "sender": "scammer",
+                                "content": ai_message,
+                                "type": "text",
+                                "timestamp": time.time(),
+                                "has_pressure": False,
+                                "typing_delay_ms": typing_delay,  # Send typing delay to frontend
+                            }
+                        }, websocket)
+                
+                # Also send the message_processed event for game logic
                 await websocket.send_json({
                     "event": "message_processed",
-                    **result
+                    "status": "received",
+                    "behavior_profile": result.get("behavior_profile"),
                 })
             
             elif event == "player_action":
@@ -114,11 +152,23 @@ async def websocket_round2_gameplay(websocket: WebSocket, room_code: str):
                     continue
                 action = data.get("action")
                 context = data.get("context", {})
+                
+                # 🔥 Log player action with details
+                log.info(f"📨 [PLAYER_ACTION] Received action from player {player_id}: {action}")
+                log.info(f"   Context: {context}")
+                
                 result = await manager.handle_player_action(player_id, action, context)
+                
+                log.info(f"✅ [ACTION_RESULT] Result for action '{action}':")
+                log.info(f"   Status: {result.get('status')}")
+                log.info(f"   Result: {result}")
+                
                 await websocket.send_json({
                     "event": "action_processed",
                     **result
                 })
+                
+                log.info(f"📤 [ACTION_SENT] Response sent to client for action '{action}'")
             
             elif event == "use_power_up":
                 if not player_id:

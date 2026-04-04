@@ -239,22 +239,10 @@ export default function RoomSection() {
     const params = `?room=${roomCode}&player=${playerId}`
     
     try {
-      // Initialize Round 2 game backend if selected
-      if (round === 'whatsapp') {
-        await fetch(`http://localhost:8000/round2/initialize?difficulty=${selectedDiff}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            room_code: roomCode,
-            player_ids: [playerId], // Must be array
-          }),
-        })
-      }
-      
-      // Navigate to game
+      // Navigate to the selected round simulation
       if (round === 'call') {
         router.push(`/simulation/call${params}`)
-      } else {
+      } else if (round === 'whatsapp') {
         router.push(`/simulation/whatsapp${params}`)
       }
     } catch (err) {
@@ -283,8 +271,26 @@ export default function RoomSection() {
     sessionRef.current = { roomCode, playerId }
   }, [roomCode, playerId])
 
+  // Derive computed state (must be before useEffect that depends on them)
   const isInRoom = state === 'lobby' && !!roomCode
   const isLoading = state === 'loading'
+
+  // 🔥 Save player info to localStorage when they join a room
+  useEffect(() => {
+    if (playerId && agentName.trim() && isInRoom) {
+      try {
+        const playerInfo = {
+          playerId,
+          codename: agentName.trim(),
+          joinedAt: new Date().toISOString(),
+        }
+        localStorage.setItem(`player_${playerId}`, JSON.stringify(playerInfo))
+        console.log('🔥 Player info saved:', playerInfo)
+      } catch (error) {
+        console.error('Error saving player info:', error)
+      }
+    }
+  }, [playerId, agentName, isInRoom])
 
   // Poll live rooms every 3 s
   useEffect(() => {

@@ -10,10 +10,14 @@ Difficulty affects:
   hard   — highly convincing, subtle manipulation, no obvious tells
 """
 
+import asyncio
 import random
 from typing import List, Dict, Any
 from app.constants.scenario_types import ScenarioType, ROUND_TYPE_ORDER
 from app.services.ai_service import generate_call_scenario
+from app.utils.logger import get_logger
+
+log = get_logger(__name__)
 
 # ─── CALL Template System ───────────────────────────────────────────────────
 
@@ -246,37 +250,61 @@ _POOLS: Dict[ScenarioType, Dict[str, List[Dict[str, Any]]]] = {
 
 async def generate_scenarios(difficulty: str = "easy") -> List[Dict[str, Any]]:
     """
-    Returns 3 scenario dicts in ROUND_TYPE_ORDER, tuned to difficulty.
+    Returns scenarios tuned to difficulty. ALWAYS uses AI generation for variety.
     Each dict: type, round_number, correct_action, red_flags, payload.
     """
     diff = difficulty if difficulty in ("easy", "medium", "hard") else "easy"
     scenarios = []
+    max_retries = 3
     
     for idx, scenario_type in enumerate(ROUND_TYPE_ORDER):
         if scenario_type == ScenarioType.CALL:
-            # Use AI generation for call simulation
-            variant = await generate_call_scenario(diff)
+            # Use AI generation for call simulation with retries for maximum randomness
+            variant = None
+            for attempt in range(max_retries):
+                try:
+                    variant = await generate_call_scenario(diff)
+                    if variant:
+                        log.info(f"Generated diverse AI scenario for difficulty: {diff} (attempt {attempt + 1})")
+                        break
+                except Exception as e:
+                    log.warning(f"AI scenario generation attempt {attempt + 1} failed: {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(0.5)  # Small delay before retry
+                    continue
+            
             if not variant:
-                # Fallback to templates if AI fails completely
+                # Last resort fallback (should rarely happen now)
+                log.warning("AI failed after retries. Using template fallback.")
                 template = random.choice(_TEMPLATES)
                 variant = template.generate()
         else:
             pool = _POOLS[scenario_type][diff]
             variant = random.choice(pool)
         
-        # Build payload
+        # Build payload - ensure red_flags are included
         payload = {k: v for k, v in variant.items()
-                  if k not in ("correct_action", "red_flags", "tip")}
+                  if k not in ("correct_action", "correct_answer", "red_flags", "tip")}
         
         if "tip" in variant:
             payload["tip"] = variant["tip"]
+        
+        # Extract red_flags with fallback
+        red_flags = variant.get("red_flags", [])
+        if not red_flags and scenario_type == ScenarioType.CALL:
+            # Generate smart red flags if not provided
+            red_flags = [
+                "Unsolicited call requesting sensitive information",
+                "Creation of artificial urgency/pressure",
+                "Request for passwords, OTP, or payment details"
+            ]
         
         scenarios.append({
             "type": scenario_type.value,
             "round_number": idx + 1,
             "difficulty": diff,
             "correct_action": variant.get("correct_action", variant.get("correct_answer")),
-            "red_flags": variant.get("red_flags", []),
+            "red_flags": red_flags,
             "payload": payload,
         })
     return scenarios

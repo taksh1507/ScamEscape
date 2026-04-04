@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import WhatsAppSimulation from '@/components/sections/WhatsAppSimulation'
 import { useToast } from '@/hooks/useToast'
 
-export default function WhatsAppPage() {
+function WhatsAppPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast, show: showToast } = useToast()
@@ -59,4 +59,19 @@ export default function WhatsAppPage() {
   }
 
   return <WhatsAppSimulation roomCode={roomCode} playerId={playerId} />
+}
+
+export default function WhatsAppPage() {
+  return (
+    <Suspense fallback={
+      <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
+        <div className="text-center text-white">
+          <div className="animate-spin w-12 h-12 border-4 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-xl font-semibold">Loading...</p>
+        </div>
+      </div>
+    }>
+      <WhatsAppPageContent />
+    </Suspense>
+  )
 }

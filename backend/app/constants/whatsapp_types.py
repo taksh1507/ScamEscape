@@ -22,6 +22,7 @@ class ScammerType(Enum):
     BANK_AGENT = "bank_agent"
     DELIVERY_COMPANY = "delivery_company"
     FRIEND_CONTACT = "friend_contact"
+    RELATIVE_CONTACT = "relative_contact"  # 🔥 NEW: Family members impersonation
     GOVERNMENT_OFFICIAL = "government_official"
     TECH_SUPPORT = "tech_support"
     INVESTMENT_ADVISOR = "investment_advisor"

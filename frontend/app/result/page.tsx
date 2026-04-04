@@ -15,10 +15,14 @@ function ResultContent() {
   const diff = searchParams.get('diff') || 'medium'
   const correct = searchParams.get('correct') === 'true'
 
+  const handleEnter = () => {
+    // Navigation for Result page
+  }
+
   return (
     <>
       <CursorEffect />
-      <Navbar />
+      <Navbar onEnter={handleEnter} />
 
       <main
         style={{

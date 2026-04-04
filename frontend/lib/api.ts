@@ -36,7 +36,10 @@ export async function createRoom(nickname: string): Promise<CreateRoomResponse> 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nickname }),
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to create room' }))
+    throw new Error(err.detail ?? 'Failed to create room')
+  }
   return res.json()
 }
 
