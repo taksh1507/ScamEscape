@@ -186,8 +186,8 @@ export default function CallSimulation() {
 
   // Navigate to next simulation (placeholder route — swap when ready)
   const handleContinue = () => {
-    router.push('/simulation/next')
-  }
+  router.push('/simulation/whatsapp')
+}
 
   const grade  = decision ? GRADE[decision]  : null
   const points = decision ? POINTS[decision] : 0

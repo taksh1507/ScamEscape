@@ -1,10 +1,12 @@
 import type { StatItem, FeatureItem, NavLink } from './types'
 
 export const NAV_LINKS: NavLink[] = [
-  { label: 'Rooms',       href: '#rooms' },
-  { label: 'Simulate',   href: '#simulate' },
-  { label: 'Leaderboard', href: '#' },
-  { label: 'About',      href: '#' },
+  { label: 'Home',      href: '/' },
+  { label: 'learn',      href: '/learn' },
+  { label: 'Play',      href: '/play' },
+  { label: 'Scanner',      href: '/scanner' },
+  { label: 'Leaderboard', href: '/Leaderboard' },
+
 ]
 
 export const STATS: StatItem[] = [
