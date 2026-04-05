@@ -30,31 +30,6 @@ def create_room(nickname: str) -> Tuple[Room, Player]:
     save_player(player)
     save_room(room)
     
-    # 🔥 Save to MongoDB
-    try:
-        import asyncio
-        asyncio.create_task(
-            MongoDBService.save_room({
-                "room_code": room.room_code,
-                "leader_id": room.leader_id,
-                "status": room.status.value,
-                "player_ids": room.player_ids,
-                "current_round": room.current_round,
-            })
-        )
-        asyncio.create_task(
-            MongoDBService.save_player({
-                "player_id": player.player_id,
-                "nickname": player.nickname,
-                "room_code": player.room_code,
-                "is_leader": player.is_leader,
-                "score": player.score,
-            })
-        )
-        log.info(f"✅ Room {room_code} and player {player_id} saved to MongoDB")
-    except Exception as e:
-        log.warning(f"⚠️ Failed to save to MongoDB: {e}")
-    
     return room, player
 
 
@@ -83,31 +58,6 @@ def join_room(nickname: str, room_code: str) -> Tuple[Optional[Room], Optional[P
     save_player(player)
     save_room(room)
     
-    # 🔥 Save to MongoDB
-    try:
-        import asyncio
-        asyncio.create_task(
-            MongoDBService.save_room({
-                "room_code": room.room_code,
-                "leader_id": room.leader_id,
-                "status": room.status.value,
-                "player_ids": room.player_ids,
-                "current_round": room.current_round,
-            })
-        )
-        asyncio.create_task(
-            MongoDBService.save_player({
-                "player_id": player.player_id,
-                "nickname": player.nickname,
-                "room_code": player.room_code,
-                "is_leader": player.is_leader,
-                "score": player.score,
-            })
-        )
-        log.info(f"✅ Player {player_id} joined room {room_code} and synced to MongoDB")
-    except Exception as e:
-        log.warning(f"⚠️ Failed to sync to MongoDB: {e}")
-    
     return room, player, ""
 
 
@@ -135,21 +85,6 @@ def leave_room(player_id: str) -> Optional[str]:
             if new_leader:
                 new_leader.is_leader = True
                 save_player(new_leader)
-                
-                # 🔥 Sync to MongoDB
-                try:
-                    import asyncio
-                    asyncio.create_task(
-                        MongoDBService.save_player({
-                            "player_id": new_leader.player_id,
-                            "nickname": new_leader.nickname,
-                            "room_code": new_leader.room_code,
-                            "is_leader": new_leader.is_leader,
-                            "score": new_leader.score,
-                        })
-                    )
-                except Exception as e:
-                    log.warning(f"⚠️ Failed to sync new leader to MongoDB: {e}")
         
         save_room(room)
         

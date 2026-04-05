@@ -12,7 +12,7 @@ export type GameEvent =
   | { event: 'player_left';   player_id: string; nickname: string }
   | { event: 'action_received'; action: string }
   | { event: 'decision_result';  data: { selected_option: string; risk_level: string; grade: string; explanation: string; better_action: string } }
-  | { event: 'call_update';    player_id: string; data: { phase: string; message: string; suggested_actions: any[]; ttl?: number } }
+  | { event: 'call_update';    player_id: string; data: { phase: string; message: string; suggested_actions: any[]; evaluation?: any; ttl?: number } }
   | { event: 'round_end';      round_number: number }
   | { event: 'error';         message: string }
   | { event: 'pong' }

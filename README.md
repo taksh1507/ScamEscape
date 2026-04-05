@@ -1,15 +1,478 @@
-# 🛡️ ScamEscape - Learn to Spot Scams
+# 🛡️ ScamEscape - Interactive Scam Training Game
 
-**A game that teaches you how to recognize and escape real scams using AI.**
+**Learn to recognize and escape real scams through AI-powered simulations.**
 
-![Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.0.0-blue?style=flat-square)
+![Status](https://img.shields.io/badge/Status-Development-orange?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.0.0-blue?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.13%2B-blue?logo=python&style=flat-square)
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green?logo=node.js&style=flat-square)
 ![Next.js](https://img.shields.io/badge/Next.js-16.2-black?logo=next.js&style=flat-square)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green?logo=fastapi&style=flat-square)
 ![Groq API](https://img.shields.io/badge/Groq-LLaMA%203.3-orange?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+
+---
+
+## 📋 Table of Contents
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Game Mechanics](#game-mechanics)
+- [Technology Stack](#technology-stack)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Recent Updates](#recent-updates)
+- [API Endpoints](#api-endpoints)
+- [Environment Variables](#environment-variables)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+
+---
+
+## 🎮 Overview
+
+**ScamEscape** is an interactive, educational game platform that trains users to identify and escape real-world scams. Players face AI-powered scammers in two simulation rounds:
+
+- **Round 1**: Phone call scams (voice-based, real-time)
+- **Round 2**: WhatsApp chat scams (message-based, turn-based)
+
+The game uses **LLaMA 3.3 70B** via Groq API to generate realistic, contextually-aware scam messages that adapt to player behavior.
+
+### 🎯 Core Mission
+**Turn scam victims into scam detectives** through immersive, AI-driven education and real-time feedback.
+
+---
+
+## ✨ Key Features
+
+### 🎮 Round 1: Voice Call Simulation
+- **AI-Powered Scam Calls** - Realistic voice conversations with adaptive difficulty
+- **7 Scammer Archetypes**
+  - Bank fraud specialists
+  - Delivery & logistics scammers
+  - Government/Tax impersonators
+  - Tech support fraudsters
+  - Investment scheme operators
+  - Telecom service manipulators
+  - Friend/Family emergency exploiters
+- **Real-time Decision Making** - Multiple response options to choose from
+- **Red Flag System** - Contextual warnings about suspicious patterns
+- **Dynamic Conversation** - 10-15 exchange interactions with each scammer
+- **Flexible Ending** - **Hang up at ANY TIME = Success** (escape the scam)
+- **Score Tracking** - Scores 1-50 for getting scammed, 60-100 for escaping
+
+### 💬 Round 2: WhatsApp Chat Simulation
+- **AI Chat Bot** - Real-time message responses using LLaMA
+- **Authentic UI** - Mimics real WhatsApp experience
+- **Payment Attempt Detection** - AI tries to get payment; you detect it
+- **Two Outcomes**:
+  - **✅ SCAM DETECTED** - Report the scam (Score: 60-100)
+  - **❌ SCAMMED** - You fell for it (Score: 1-50)
+- **Dynamic Escalation** - AI adapts based on your replies
+- **Turn-based Gameplay** - Control pace of conversation
+- **Game Finished Screen** - Clear results and redirect to home
+
+### 🧠 Adaptive Learning
+- **Difficulty Levels**: Easy, Medium, Hard
+- **Behavioral Analysis** - Tracks decision patterns
+- **Psychological Insights** - Measures vulnerability to urgency/FOMO
+- **Personalized Messages** - AI tailors scams to player profile
+
+---
+
+## 🎮 Game Mechanics
+
+### Round 1: Phone Call Flow
+```
+1. Room Creation → 
+2. Difficulty Selection → 
+3. Call Incoming (10s ringtone) → 
+4. Auto-answer after 10s → 
+5. Scammer introduces scenario → 
+6. Display response options → 
+7. Player chooses action → 
+8. Next message from scammer OR
+9. Player hangs up → ✅ ESCAPED (Score: 60-100)
+10. Player provides sensitive info → ❌ SCAMMED (Score: 1-50)
+11. Transition to Round 2
+```
+
+### Round 2: WhatsApp Chat Flow
+```
+1. AI sends initial message (e.g., "Hi, it's your bank...") → 
+2. Player responds → 
+3. AI analyzes response & replies → 
+4. Cycle until player:
+   - Detects & reports scam → ✅ YOU ESCAPED (Score: 60-100)
+   - Clicks "Send Payment" → ❌ YOU SCAMMED (Score: 1-50)
+5. Results screen → 
+6. Back to Home
+```
+
+### Scoring System
+| Action | Result | Score Range |
+|--------|--------|-------------|
+| Hang up / Block call | Escaped ✅ | 60-100 |
+| Provide card/bank details | Scammed ❌ | 1-50 |
+| Report scam | Detected ✅ | 60-100 |
+| Send payment | Scammed ❌ | 1-50 |
+
+---
+
+## 🛠️ Technology Stack
+
+### Backend
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| **Framework** | FastAPI 0.115 | High-performance async web API |
+| **Language** | Python 3.13+ | Server logic |
+| **AI Provider** | Groq API | Ultra-fast LLaMA inference |
+| **AI Model** | LLaMA 3.3 70B | Context-aware message generation |
+| **Real-time** | WebSockets | Live game events |
+| **Database** | SQLite 3.x | Local data persistence |
+| **Validation** | Pydantic v2 | Data schema validation |
+
+### Frontend
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| **Framework** | Next.js 16.2 | React meta-framework |
+| **UI Library** | React 19.2 | Component-based UI |
+| **Language** | TypeScript 5.x | Type-safe code |
+| **Styling** | Tailwind CSS 4.x | Utility-first CSS |
+| **Animations** | Framer Motion | Smooth transitions |
+| **Real-time** | WebSocket (ES6+) | Event streaming |
+| **Icons** | Lucide React | Modern SVG icons |
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **Python 3.13+**
+- **Node.js 18+**
+- **Groq API Key** (free at https://console.groq.com)
+- **Git**
+- **4GB+ RAM**
+
+### Windows Setup (PowerShell)
+
+**1. Backend**
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# Create .env file with your Groq API key
+# GROQ_API_KEY=sk-or-v1-YOUR_KEY_HERE
+
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**2. Frontend (new terminal)**
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+**3. Open browser**
+```
+http://localhost:3000
+```
+
+### macOS/Linux Setup (Bash)
+
+**1. Backend**
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Create .env file
+echo "GROQ_API_KEY=sk-or-v1-YOUR_KEY_HERE" > .env
+
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**2. Frontend (new terminal)**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## 📁 Project Structure
+
+```
+ScamEscape/
+├── backend/
+│   ├── app/
+│   │   ├── main.py                          # FastAPI entry point
+│   │   ├── api/
+│   │   │   ├── game.py                      # Game endpoints
+│   │   │   ├── chat.py                      # Chat (Round 2)
+│   │   │   ├── room.py                      # Room management
+│   │   │   ├── health.py                    # Health check
+│   │   │   └── live_scams.py                # Live scam feed
+│   │   ├── services/                        # 30+ business logic services
+│   │   │   ├── ai_scam_generator.py         # 🤖 Groq API wrapper
+│   │   │   ├── game_engine.py               # Core game state machine
+│   │   │   ├── adaptive_call_manager.py     # Difficulty scaling
+│   │   │   ├── round_manager.py             # Round orchestration
+│   │   │   ├── room_manager.py              # Room lifecycle
+│   │   │   ├── scoring.py                   # Score calculations
+│   │   │   ├── psychological_scorer.py      # Vulnerability assessment
+│   │   │   ├── time_pressure.py             # Timer system
+│   │   │   └── warning_system.py            # Red flag alerts
+│   │   ├── models/                          # Pydantic models
+│   │   │   ├── game_state.py                # Game state
+│   │   │   ├── player.py                    # Player data
+│   │   │   └── room.py                      # Room data
+│   │   ├── schemas/                         # Request/Response
+│   │   │   ├── action_schema.py
+│   │   │   ├── game_schema.py
+│   │   │   └── room_schema.py
+│   │   ├── core/                            # Core setup
+│   │   │   ├── config.py                    # Configuration
+│   │   │   ├── events.py                    # Event definitions
+│   │   │   └── websocket.py                 # WebSocket setup
+│   │   ├── state/                           # State stores
+│   │   │   ├── game_store.py
+│   │   │   ├── player_store.py
+│   │   │   └── rooms_store.py
+│   │   ├── constants/                       # Game config
+│   │   │   ├── game_constants.py
+│   │   │   ├── scenario_types.py
+│   │   │   └── scammer_profiles.py
+│   │   └── utils/
+│   │       ├── id_generator.py
+│   │       ├── logger.py
+│   │       └── timer.py
+│   ├── requirements.txt
+│   ├── .env                                 # GITIGNORED
+│   └── scores.db                            # SQLite database
+│
+├── frontend/
+│   ├── app/
+│   │   ├── page.tsx                         # Home/Lobby
+│   │   ├── layout.tsx                       # Root layout
+│   │   ├── globals.css                      # Global styles
+│   │   ├── play/
+│   │   │   └── page.tsx                     # Redirects to home
+│   │   ├── simulation/
+│   │   │   ├── call/
+│   │   │   │   └── page.tsx                 # Round 1 wrapper
+│   │   │   └── chat/
+│   │   │       └── page.tsx                 # Round 2 wrapper
+│   │   ├── scanner/
+│   │   │   └── page.tsx                     # Scam scanner tool
+│   │   ├── learn/
+│   │   │   └── page.tsx                     # Learning resources
+│   │   └── live-scam-feed/
+│   │       └── page.tsx                     # Live scam updates
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── Navbar.tsx                   # Navigation
+│   │   │   └── Footer.tsx                   # Footer
+│   │   ├── sections/
+│   │   │   ├── Hero.tsx
+│   │   │   ├── CallSimulation.tsx           # Round 1 UI
+│   │   │   ├── ChatSimulation.tsx           # Round 2 UI
+│   │   │   ├── DifficultySelect.tsx
+│   │   │   ├── RoomGrid.tsx
+│   │   │   └── TickerStrip.tsx
+│   │   └── ui/
+│   │       ├── Button.tsx
+│   │       ├── Modal.tsx
+│   │       ├── Toast.tsx
+│   │       └── WhatsAppChat.tsx
+│   ├── hooks/
+│   │   ├── useGameSocket.ts                 # Game WebSocket
+│   │   ├── useLobbySocket.ts                # Lobby WebSocket
+│   │   ├── useRoom.ts                       # Room state
+│   │   └── useCursor.ts                     # Cursor effects
+│   ├── lib/
+│   │   ├── api.ts                           # API helpers
+│   │   ├── constants.ts                     # Constants (NAV_LINKS removed LEADERBOARD)
+│   │   └── types.ts                         # TypeScript types
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── README.md                                # This file
+├── SETUP.md                                 # Detailed setup guide
+└── API_DOCS.md                              # API documentation
+```
+
+---
+
+## 🆕 Recent Updates (v2.0)
+
+### ✅ Completed Changes
+- ✅ **Removed Leaderboard Completely**
+  - Deleted `/leaderboard` routes (frontend & backend)
+  - Removed `/leaderboard/add-score` API endpoint
+  - Removed score persistence logic
+  - Removed from navbar navigation
+
+- ✅ **Simplified Game End Flow**
+  - Changed button text to "BACK TO HOME"
+  - Removed localStorage saving
+  - Removed backend API calls on game completion
+  - Direct redirect to homepage
+
+- ✅ **Improved Chat Simulation**
+  - Fixed button logic for scammed/detected states
+  - Clean game-over flow without data persistence
+
+- ✅ **Enhanced Documentation**
+  - Updated README with current project state
+  - Clear game mechanics explanation
+  - Simplified architecture overview
+
+### 📋 Current Navigation (Navbar)
+- **HOME** - Lobby & room selection
+- **LEARN** - Educational resources  
+- **SCANNER** - Scam detection tool
+- ~~LEADERBOARD~~ (REMOVED)
+- ~~PLAY~~ (REMOVED)
+
+---
+
+## 🔌 API Endpoints
+
+### Health & Status
+```
+GET  /health/time                         Health check with server time
+GET  /                                    API root message
+```
+
+### Game Management
+```
+POST /game/create-room                    Create new game room
+GET  /game/room/{room_id}                 Get room status
+POST /game/room/{room_id}/join            Join existing room
+```
+
+### Round 1: Phone Calls
+```
+GET  /game/room/{room_id}/call            Get call scenario
+WS   /ws/game/{room_id}                   WebSocket for real-time gameplay
+```
+
+### Round 2: Chat
+```
+POST /chat/message                        Send chat message
+GET  /chat/history/{room_id}              Get message history
+```
+
+### Live Feed
+```
+GET  /live-scams                          Get live scam incidents
+```
+
+*Full API docs: `http://localhost:8000/docs` (Swagger UI)*
+
+---
+
+## 🔐 Environment Variables
+
+**Backend (.env)**
+```env
+# Required
+GROQ_API_KEY=sk-or-v1-YOUR_API_KEY_HERE
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+
+# Application
+APP_NAME=ScamEscape
+ENVIRONMENT=development
+DEBUG=true
+
+# Database
+DATABASE_URL=sqlite:///./scores.db
+
+# Frontend URL (for CORS)
+FRONTEND_ORIGIN=http://localhost:3000
+```
+
+**Frontend (.env.local)**
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_WS_URL=ws://localhost:8000
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Backend won't start
+```
+# Kill any existing Python processes
+taskkill /IM python.exe /F
+# Then restart
+python -m uvicorn app.main:app --reload
+```
+
+### Frontend shows "Failed to fetch"
+- Check backend is running on port 8000
+- Verify `.env.local` has correct `NEXT_PUBLIC_API_URL`
+- Check CORS headers (should allow `*`)
+
+### WebSocket connection errors
+- Ensure backend server is running
+- Check network connectivity
+- Verify WebSocket URL in frontend
+
+### Groq API errors
+- Verify API key is valid and not expired
+- Check Groq console for rate limits
+- Ensure sufficient API quota
+
+---
+
+## 📚 Additional Resources
+
+- **API Documentation**: See [API_DOCS.md](API_DOCS.md)
+- **Setup Guide**: See [SETUP.md](SETUP.md)
+- **Groq Console**: https://console.groq.com
+- **Next.js Docs**: https://nextjs.org/docs
+- **FastAPI**: https://fastapi.tiangolo.com/
+
+---
+
+## 🤝 Contributing
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feat/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feat/amazing-feature`)
+5. **Open** a Pull Request
+
+### Code Standards
+- **Python**: PEP 8, type hints required
+- **TypeScript**: Strict mode, ESLint rules
+- **Git**: Descriptive commit messages
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** - see the LICENSE file for details.
+
+---
+
+## 👨‍💻 Author & Contact
+
+**Atul Gandhi**  
+📧 Email: atulgandhi425@gmail.com  
+🐙 GitHub: [@taksh1507](https://github.com/taksh1507)  
+🔗 LinkedIn: [@atulgandhi](https://linkedin.com/in/atulgandhi)
+
+---
+
+**Made with ❤️ to combat scams and educate the world.**
 
 ---
 

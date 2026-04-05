@@ -17,6 +17,7 @@ from app.models.game_state import GameState
 from app.state.game_store import get_game, save_game
 from app.state.player_store import get_player, get_players_in_room
 from app.services.scoring import score_round
+from app.services.sqlite_score_store import SQLiteScoreStore
 from app.constants.game_constants import (
     ROUND_DURATION_SECONDS,
     ROUND_BUFFER_SECONDS,
@@ -119,6 +120,7 @@ async def run_adaptive_call_round(room_code: str, round_number: int, broadcast_f
                 "message": initial_message,  # ← Use real script, not generic phase response
                 "suggested_actions": suggested_actions,  # ← Use properly formatted options
                 "caller": scenario_data["payload"]["caller"],
+                "evaluation": None,  # 🔥 Initial message has no evaluation yet
                 "ttl": time.time() + 30  # Message valid for 30 seconds
             }
         })
@@ -231,6 +233,16 @@ async def run_adaptive_call_round(room_code: str, round_number: int, broadcast_f
             
             player.score += points_awarded
             save_player(player)
+            
+            # 🔥 SAVE TO SQLITE FOR LEADERBOARD
+            SQLiteScoreStore.save_score(
+                player_id=p.player_id,
+                nickname=player.nickname,
+                room_code=room_code,
+                round_number=round_number,
+                score=points_awarded,
+                grade=grade_letter
+            )
             
             result_entries.append({
                 "player_id": p.player_id,

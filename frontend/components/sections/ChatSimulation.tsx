@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useGameSocket } from '@/hooks/useGameSocket'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -43,7 +44,8 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
   const [scenario, setScenario] = useState<ChatScenario | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [score, setScore] = useState(0)
-  const [gamePhase, setGamePhase] = useState<'loading' | 'chat' | 'results' | 'payment_cleared' | 'congratulations' | 'game_finished'>('loading')
+  const [randomScore, setRandomScore] = useState(0) // 🔴 Random score 1-100
+  const [gamePhase, setGamePhase] = useState<'loading' | 'chat' | 'results' | 'payment_cleared' | 'congratulations' | 'game_finished' | 'scammed_display' | 'detected_display'>('loading')
   const [userInput, setUserInput] = useState('')
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -51,17 +53,30 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentClicked, setPaymentClicked] = useState(false)
   const [showPaymentPopup, setShowPaymentPopup] = useState(false)  // 💰 Payment detection popup
+  const [paymentStep, setPaymentStep] = useState<'initial' | 'successful' | 'scammed' | 'reported' | 'blocked'>('initial')  // 💰 Payment flow step
   const [showPersonalMsg, setShowPersonalMsg] = useState(false)  // 👤 Personal message popup
   const [showReportPopup, setShowReportPopup] = useState(false)  // 📋 Report confirmation popup
   const [personalMsgAction, setPersonalMsgAction] = useState<'end' | 'continue' | null>(null)  // 👤 Which action triggered it
   const inputRef = useRef<HTMLInputElement>(null)
   const messagesContainerRef = useAutoScroll(messages)
 
+  // 🔴 Generate random score with different ranges based on result
+  const generateRandomScore = (result?: string) => {
+    if (result === 'detected') {
+      // Congratulation: avoided scam = 60-100
+      return Math.floor(Math.random() * 41) + 60
+    } else {
+      // Got scammed = 1-50
+      return Math.floor(Math.random() * 50) + 1
+    }
+  }
+
   const handleMessage = useCallback((evt: any) => {
     console.log('ChatSimulation received event:', evt)
   }, [])
 
   const { submitAction } = useGameSocket(roomCode, playerId, handleMessage)
+  const router = useRouter()
 
   const getCurrentTime = () => {
     const now = new Date()
@@ -81,7 +96,13 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
         const url = `${baseUrl}/chat/round2/scenario/${roomCode}/${playerId}`
         console.log(`🔗 Fetching from: ${url} (attempt ${retryCount + 1}/${maxRetries})`)
         
-        const response = await fetch(url)
+        // 🔥 Add timeout to fail faster (15 seconds max)
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 15000)
+        
+        const response = await fetch(url, { signal: controller.signal })
+        clearTimeout(timeout)
+        
         console.log('📊 Response status:', response.status)
         
         if (!response.ok) {
@@ -100,11 +121,11 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
             errorDetail = await response.text()
           }
           
-          // 🔥 Handle rate limit errors with exponential backoff
+          // 🔥 Handle rate limit errors with SHORT backoff (max 3s)
           if (response.status === 429 && retryCount < maxRetries) {
-            const delayMs = Math.pow(2, retryCount) * 1000 + Math.random() * 1000 // 1s, 2s, 4s + jitter
+            const delayMs = Math.min(3000, Math.pow(2, retryCount) * 500)  // Cap at 3s
             console.log(`⏳ Rate limited! Retrying in ${delayMs.toFixed(0)}ms...`)
-            setLoadError(`Rate limited by API. Retrying in ${(delayMs / 1000).toFixed(1)}s...`)
+            setLoadError(`Retrying... (${retryCount + 1}/${maxRetries})`)
             
             await new Promise(resolve => setTimeout(resolve, delayMs))
             retryCount++
@@ -229,6 +250,98 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
     }
   }
 
+  // 💰 Make Payment Handler
+  const handleMakePayment = useCallback(() => {
+    console.log('💳 MAKE PAYMENT CLICKED')
+    setPaymentStep('successful')
+  }, [])
+
+  // 💰 After Payment Successful - Show Scammed Message then Score
+  const handlePaymentSuccessful = useCallback(() => {
+    console.log('💰 PAYMENT SUCCESSFUL - GENERATING RANDOM SCORE')
+    const newScore = generateRandomScore('scammed')
+    console.log(`🔴 GENERATED SCORE: ${newScore}/50`)
+    
+    // Store score to backend
+    if (roomCode && playerId) {
+      console.log(`📤 Saving score to backend: ${newScore}`)
+      fetch(process.env.NEXT_PUBLIC_API_URL + '/game/save-round-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room_code: roomCode.toUpperCase(),
+          player_id: playerId,
+          round_number: 2,
+          score: newScore,
+          result: 'scammed'
+        })
+      }).catch(e => console.warn('Failed to save scam score:', e))
+    }
+    
+    // Update all states and transition
+    setRandomScore(newScore)
+    setPaymentStep('scammed')
+    setShowPaymentPopup(false)
+    
+    // Direct transition with the score
+    setTimeout(() => {
+      console.log(`🎯 Transitioning to scammed_display with score: ${newScore}`)
+      setGamePhase('scammed_display')
+    }, 500)
+  }, [roomCode, playerId])
+
+  // 💰 Report to Authorities Handler
+  const handleReport = useCallback(() => {
+    console.log('📞 REPORT TO AUTHORITIES CLICKED - GENERATING RANDOM SCORE')
+    const newScore = generateRandomScore('detected')
+    console.log(`🟢 GENERATED SCORE: ${newScore}/100`)
+    
+    // Store score to backend
+    if (roomCode && playerId) {
+      console.log(`📤 Saving detection score to backend: ${newScore}`)
+      fetch(process.env.NEXT_PUBLIC_API_URL + '/game/save-round-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room_code: roomCode.toUpperCase(),
+          player_id: playerId,
+          round_number: 2,
+          score: newScore,
+          result: 'detected'
+        })
+      }).catch(e => console.warn('Failed to save detection score:', e))
+    }
+    
+    // Update all states and transition
+    setRandomScore(newScore)
+    setPaymentStep('reported')
+    setShowPaymentPopup(false)
+    
+    // Direct transition with the score
+    setTimeout(() => {
+      console.log(`🎯 Transitioning to detected_display with score: ${newScore}`)
+      setGamePhase('detected_display')
+    }, 500)
+  }, [roomCode, playerId])
+
+  // 💰 Block User Handler
+  const handleBlock = useCallback(() => {
+    console.log('🚫 BLOCK USER CLICKED')
+    setPaymentStep('blocked')
+  }, [])
+
+  // 💰 End Payment Flow - Finalize Game
+  const handleEndPaymentFlow = useCallback(() => {
+    console.log('✅ PAYMENT FLOW ENDED - GAME OVER')
+    setShowPaymentPopup(false)
+    if (submitAction) submitAction('fell_for_scam')
+    setScore(0)
+    setTimeout(() => {
+      console.log('🔄 Redirecting to main page after payment scam...')
+      window.location.href = '/'
+    }, 1000)
+  }, [submitAction])
+
   const handleDetectScam = () => {
     console.log('🚨 Detect Scam button clicked!')
     // Show payment popup - no keyword checking
@@ -275,6 +388,33 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
     }, 1000)
   }
 
+  // 💰 Reset payment step when payment popup opens
+  useEffect(() => {
+    if (showPaymentPopup && paymentStep !== 'initial') {
+      setPaymentStep('initial')
+    }
+  }, [showPaymentPopup])
+
+  // 🔴 Transition from scammed step to score display
+  useEffect(() => {
+    if (paymentStep === 'scammed' && randomScore > 0) {
+      setTimeout(() => {
+        setShowPaymentPopup(false)
+        setGamePhase('scammed_display')
+      }, 1500)
+    }
+  }, [paymentStep, randomScore])
+
+  // ✅ Transition from reported step to score display  
+  useEffect(() => {
+    if (paymentStep === 'reported' && randomScore > 0) {
+      setTimeout(() => {
+        setShowPaymentPopup(false)
+        setGamePhase('detected_display')
+      }, 1500)
+    }
+  }, [paymentStep, randomScore])
+
   const handleFellForScam = () => {
     if (submitAction) submitAction('fell_for_scam')
     setScore(0)
@@ -306,14 +446,18 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} style={{ textAlign: 'center', maxWidth: '448px' }}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
           <h1 style={{ fontSize: '32px', fontFamily: 'var(--font-head)', fontWeight: 'bold', color: 'var(--red)', marginBottom: '16px' }}>
-            Error
+            Error Loading Chat
           </h1>
-          <p style={{ color: 'var(--text)', marginBottom: '24px', fontFamily: 'var(--font-body)' }}>
+          <p style={{ color: 'var(--text)', marginBottom: '24px', fontFamily: 'var(--font-body)', lineHeight: 1.6 }}>
             {loadError}
           </p>
           <motion.button
             whileHover={{ scale: 1.05 }}
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              setLoadError(null)
+              setIsLoading(true)
+              fetchChatScenario()
+            }}
             style={{
               background: 'var(--red)',
               color: 'white',
@@ -322,10 +466,11 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
               padding: '12px 24px',
               borderRadius: '6px',
               border: 'none',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              fontSize: '14px'
             }}
           >
-            Retry
+            Retry Loading
           </motion.button>
         </motion.div>
       </div>
@@ -466,7 +611,11 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
                     color: '#ffffff',
                     border: '2px solid #ff1744',
                     borderRadius: '8px',
-                    outline: 'none'
+                    outline: 'none',
+                    pointerEvents: 'auto',  // 🔥 Explicit pointer events
+                    zIndex: 100,  // 🔥 Ensure input is clickable
+                    cursor: 'text',  // 🔥 Show text cursor
+                    position: 'relative'  // 🔥 Create stacking context
                   }}
                 />
                 <motion.button
@@ -483,7 +632,10 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
                     borderRadius: '20px',
                     border: 'none',
                     cursor: (isWaitingForResponse || !userInput.trim()) ? 'not-allowed' : 'pointer',
-                    opacity: (isWaitingForResponse || !userInput.trim()) ? 0.5 : 1
+                    opacity: (isWaitingForResponse || !userInput.trim()) ? 0.5 : 1,
+                    pointerEvents: 'auto',  // 🔥 Ensure button is clickable
+                    zIndex: 100,  // 🔥 Ensure button is above overlays
+                    position: 'relative'  // 🔥 Create stacking context
                   }}
                 >
                   Send
@@ -720,7 +872,7 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
           )}
         </AnimatePresence>
 
-        {/* 💰 Payment Detection Popup Modal */}
+        {/* 💰 Payment Detection Popup Modal - Multi-Step Flow */}
         {showPaymentPopup && (
           <div style={{
             position: 'fixed',
@@ -738,90 +890,284 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
           }}>
             <div style={{
               background: 'linear-gradient(135deg, #1a1a1a 0%, #2a1a1a 100%)',
-              border: '3px solid #ff1744',
+              border: paymentStep === 'initial' ? '3px solid #ff1744' : paymentStep === 'successful' ? '3px solid #ffa500' : paymentStep === 'scammed' ? '3px solid #ff1744' : '3px solid #00e676',
               borderRadius: '12px',
               padding: '48px 40px',
               maxWidth: '500px',
               width: '90%',
               textAlign: 'center',
-              boxShadow: '0 0 40px rgba(255,23,68,0.5)',
+              boxShadow: paymentStep === 'initial' ? '0 0 40px rgba(255,23,68,0.5)' : paymentStep === 'successful' ? '0 0 40px rgba(255,165,0,0.5)' : paymentStep === 'scammed' ? '0 0 40px rgba(255,23,68,0.5)' : '0 0 40px rgba(0,230,118,0.5)',
               position: 'relative',
               zIndex: 10000,
               pointerEvents: 'auto'
             }}>
-              <div style={{ fontSize: '80px', marginBottom: '24px' }}>💳</div>
-              <h2 style={{ fontSize: '32px', color: '#ff1744', marginBottom: '16px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase' }}>Payment Detected!</h2>
-              <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.8)', marginBottom: '32px', lineHeight: '1.6' }}>
-                The scammer is trying to get your payment! You can either end the game or continue resisting.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', zIndex: 10000 }}>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    console.log('🛑 END GAME BUTTON CLICKED')
-                    handleEndGame()
-                  }}
-                  style={{
-                    padding: '16px 32px',
-                    background: 'linear-gradient(135deg, #ff1744, #ff5577)',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: '16px',
-                    fontWeight: 700,
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    textTransform: 'uppercase',
-                    letterSpacing: '2px',
-                    position: 'relative',
-                    zIndex: 10000,
-                    pointerEvents: 'auto'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.05)'
-                    e.currentTarget.style.boxShadow = '0 0 20px rgba(255,23,68,0.8)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)'
-                    e.currentTarget.style.boxShadow = 'none'
-                  }}
-                >
-                  🛑 End Game (You Lost)
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    console.log('❌ CONTINUE BUTTON CLICKED')
-                    handleContinue()
-                  }}
-                  style={{
-                    padding: '16px 32px',
-                    background: 'rgba(255,255,255,0.1)',
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    color: '#fff',
-                    fontSize: '16px',
-                    fontWeight: 700,
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    textTransform: 'uppercase',
-                    letterSpacing: '2px',
-                    position: 'relative',
-                    zIndex: 10000,
-                    pointerEvents: 'auto'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.05)'
-                    e.currentTarget.style.boxShadow = '0 0 20px rgba(255,255,255,0.3)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)'
-                    e.currentTarget.style.boxShadow = 'none'
-                  }}
-                >
-                  ❌ Continue Resisting
-                </button>
-              </div>
+              {/* STEP 1: INITIAL - Payment Detection */}
+              {paymentStep === 'initial' && (
+                <>
+                  <div style={{ fontSize: '80px', marginBottom: '24px', animation: 'pulse 1s infinite' }}>💳</div>
+                  <h2 style={{ fontSize: '32px', color: '#ff1744', marginBottom: '16px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase' }}>Payment Detected!</h2>
+                  <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.8)', marginBottom: '32px', lineHeight: '1.6' }}>
+                    The scammer is asking for payment! Do you want to make the payment?
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', zIndex: 10000 }}>
+                    <button
+                      onClick={handleMakePayment}
+                      style={{
+                        padding: '16px 32px',
+                        background: 'linear-gradient(135deg, #ffa500, #ffb533)',
+                        border: 'none',
+                        color: '#000',
+                        fontSize: '16px',
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                        letterSpacing: '2px',
+                        position: 'relative',
+                        zIndex: 10000,
+                        pointerEvents: 'auto'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.05)'
+                        e.currentTarget.style.boxShadow = '0 0 20px rgba(255,165,0,0.6)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)'
+                        e.currentTarget.style.boxShadow = 'none'
+                      }}
+                    >
+                      💰 Make Payment
+                    </button>
+                    <button
+                      onClick={handleEndGame}
+                      style={{
+                        padding: '16px 32px',
+                        background: 'rgba(255,255,255,0.1)',
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        color: '#fff',
+                        fontSize: '16px',
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                        letterSpacing: '2px',
+                        position: 'relative',
+                        zIndex: 10000,
+                        pointerEvents: 'auto'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.7)'
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                      }}
+                    >
+                      ❌ Refuse Payment (End Game)
+                    </button>
+                  </div>
+                  <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(255,23,68,0.1)', borderLeft: '4px solid #ff1744', borderRadius: '4px', fontSize: '12px', color: 'rgba(255,255,255,0.7)', textAlign: 'left' }}>
+                    <strong>⚠️ Warning:</strong> Real scammers always try to get money. If you send payment, you lose!
+                  </div>
+                </>
+              )}
+              
+              {/* STEP 2: SUCCESSFUL - Payment Successful */}
+              {paymentStep === 'successful' && (
+                <>
+                  <div style={{ fontSize: '80px', marginBottom: '24px', animation: 'bounce 1s infinite' }}>✅</div>
+                  <h2 style={{ fontSize: '32px', color: '#ffa500', marginBottom: '16px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase' }}>Payment Successful!</h2>
+                  <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.8)', marginBottom: '32px', lineHeight: '1.6' }}>
+                    Your payment has been processed. Processing your transaction...
+                  </p>
+                  <button
+                    onClick={handlePaymentSuccessful}
+                    style={{
+                      padding: '16px 32px',
+                      background: 'linear-gradient(135deg, #ffa500, #ffb533)',
+                      border: 'none',
+                      color: '#000',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textTransform: 'uppercase',
+                      letterSpacing: '2px',
+                      position: 'relative',
+                      zIndex: 10000,
+                      pointerEvents: 'auto',
+                      animation: 'pulse 1s infinite'
+                    }}
+                  >
+                    ⏳ Continue...
+                  </button>
+                </>
+              )}
+              
+              {/* STEP 3: SCAMMED - You Are Being Scammed */}
+              {paymentStep === 'scammed' && (
+                <>
+                  <div style={{ fontSize: '80px', marginBottom: '24px', animation: 'shake 0.5s infinite' }}>🚨</div>
+                  <h2 style={{ fontSize: '32px', color: '#ff1744', marginBottom: '16px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase' }}>⚠️ YOU ARE BEING SCAMMED!</h2>
+                  <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.8)', marginBottom: '24px', lineHeight: '1.6' }}>
+                    This is a SCAM! The caller is attempting to steal your money. You need to take immediate action!
+                  </p>
+                  <div style={{ padding: '16px', background: 'rgba(255,23,68,0.2)', borderLeft: '4px solid #ff1744', borderRadius: '4px', fontSize: '14px', color: 'rgba(255,200,200,1)', textAlign: 'left', marginBottom: '24px', fontWeight: 600 }}>
+                    📋 Scam Details Detected:
+                    <ul style={{ marginTop: '12px', paddingLeft: '20px' }}>
+                      <li>💳 Requesting payment over phone</li>
+                      <li>🎭 Impersonating official authority</li>
+                      <li>⏰ Creating artificial urgency</li>
+                      <li>🔒 Threatening account closure</li>
+                    </ul>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', zIndex: 10000 }}>
+                    <button
+                      onClick={handleReport}
+                      style={{
+                        padding: '16px 32px',
+                        background: 'linear-gradient(135deg, #ff6b6b, #ff1744)',
+                        border: 'none',
+                        color: '#fff',
+                        fontSize: '16px',
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                        letterSpacing: '2px',
+                        position: 'relative',
+                        zIndex: 10000,
+                        pointerEvents: 'auto'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.05)'
+                        e.currentTarget.style.boxShadow = '0 0 20px rgba(255,23,68,0.6)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)'
+                        e.currentTarget.style.boxShadow = 'none'
+                      }}
+                    >
+                      📞 Report to Authorities
+                    </button>
+                    <button
+                      onClick={handleBlock}
+                      style={{
+                        padding: '16px 32px',
+                        background: 'linear-gradient(135deg, #00e676, #00ff88)',
+                        border: 'none',
+                        color: '#000',
+                        fontSize: '16px',
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                        letterSpacing: '2px',
+                        position: 'relative',
+                        zIndex: 10000,
+                        pointerEvents: 'auto'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.05)'
+                        e.currentTarget.style.boxShadow = '0 0 20px rgba(0,230,118,0.6)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)'
+                        e.currentTarget.style.boxShadow = 'none'
+                      }}
+                    >
+                      🚫 Block User
+                    </button>
+                  </div>
+                </>
+              )}
+              
+              {/* STEP 4: REPORTED - Report to Authorities */}
+              {paymentStep === 'reported' && (
+                <>
+                  <div style={{ fontSize: '80px', marginBottom: '24px', animation: 'pulse 1s infinite' }}>📞</div>
+                  <h2 style={{ fontSize: '32px', color: '#00e676', marginBottom: '16px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase' }}>✅ Report Sent!</h2>
+                  <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.8)', marginBottom: '24px', lineHeight: '1.6' }}>
+                    Thank you for reporting this scam to the authorities. The incident has been logged:
+                  </p>
+                  <div style={{ padding: '16px', background: 'rgba(0,230,118,0.1)', borderLeft: '4px solid #00e676', borderRadius: '4px', fontSize: '13px', color: 'rgba(200,255,200,1)', textAlign: 'left', marginBottom: '24px', fontWeight: 600 }}>
+                    ✓ Report filed with National Fraud Bureau<br />✓ Case ID: #SCAM-2026-{Math.random().toString(36).substring(7).toUpperCase()}<br />✓ Status: Under Investigation<br />✓ The caller number has been blocked and reported
+                  </div>
+                  <button
+                    onClick={handleEndPaymentFlow}
+                    style={{
+                      padding: '16px 32px',
+                      background: 'linear-gradient(135deg, #00e676, #00ff88)',
+                      border: 'none',
+                      color: '#000',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textTransform: 'uppercase',
+                      letterSpacing: '2px',
+                      width: '100%',
+                      position: 'relative',
+                      zIndex: 10000,
+                      pointerEvents: 'auto'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.05)'
+                      e.currentTarget.style.boxShadow = '0 0 20px rgba(0,230,118,0.6)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                      e.currentTarget.style.boxShadow = 'none'
+                    }}
+                  >
+                    ✅ End Game
+                  </button>
+                </>
+              )}
+              
+              {/* STEP 5: BLOCKED - User is Blocked */}
+              {paymentStep === 'blocked' && (
+                <>
+                  <div style={{ fontSize: '80px', marginBottom: '24px', animation: 'spin 2s linear infinite' }}>🚫</div>
+                  <h2 style={{ fontSize: '32px', color: '#00e676', marginBottom: '16px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase' }}>✅ User Blocked!</h2>
+                  <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.8)', marginBottom: '24px', lineHeight: '1.6' }}>
+                    The scammer has been successfully blocked from contacting you:
+                  </p>
+                  <div style={{ padding: '16px', background: 'rgba(0,230,118,0.1)', borderLeft: '4px solid #00e676', borderRadius: '4px', fontSize: '13px', color: 'rgba(200,255,200,1)', textAlign: 'left', marginBottom: '24px', fontWeight: 600 }}>
+                    ✓ Phone number blocked<br />✓ Cannot call or text your device<br />✓ All incoming calls from this number rejected<br />✓ Number added to national scam registry
+                  </div>
+                  <button
+                    onClick={handleEndPaymentFlow}
+                    style={{
+                      padding: '16px 32px',
+                      background: 'linear-gradient(135deg, #00e676, #00ff88)',
+                      border: 'none',
+                      color: '#000',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textTransform: 'uppercase',
+                      letterSpacing: '2px',
+                      width: '100%',
+                      position: 'relative',
+                      zIndex: 10000,
+                      pointerEvents: 'auto'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.05)'
+                      e.currentTarget.style.boxShadow = '0 0 20px rgba(0,230,118,0.6)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                      e.currentTarget.style.boxShadow = 'none'
+                    }}
+                  >
+                    ✅ End Game
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1274,6 +1620,299 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
     )
   }
 
+  // 🔴 SCAMMED DISPLAY - Show random score after payment successful
+  if (gamePhase === 'scammed_display' && randomScore > 0) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', overflow: 'auto' }}>
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} style={{ width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '20px' }}>
+          <div style={{ textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
+            {/* 🔴 SCAMMED ALERT */}
+            <motion.div
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              style={{ fontSize: '100px', marginBottom: '24px' }}
+            >
+              😱
+            </motion.div>
+
+            <h1 style={{
+              fontSize: '48px',
+              fontWeight: 700,
+              color: '#ff1744',
+              marginBottom: '16px',
+              letterSpacing: '2px',
+              textTransform: 'uppercase'
+            }}>
+              YOU GOT SCAMMED!
+            </h1>
+
+            <p style={{
+              fontSize: '18px',
+              color: 'rgba(255,255,255,0.7)',
+              marginBottom: '40px',
+              lineHeight: '1.6'
+            }}>
+              You fell for the fraud attempt and sent money
+            </p>
+
+            {/* 📊 RANDOM SCORE DISPLAY */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              style={{
+                background: 'rgba(255,23,68,0.15)',
+                border: '2px solid #ff1744',
+                borderRadius: '16px',
+                padding: '40px',
+                marginBottom: '32px'
+              }}
+            >
+              <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '12px', letterSpacing: '2px' }}>
+                YOUR ROUND 2 SCORE
+              </div>
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+                style={{
+                  fontSize: '72px',
+                  fontWeight: 800,
+                  color: randomScore > 70 ? '#00ff88' : randomScore > 40 ? '#ffb700' : '#ff1744',
+                  fontFamily: 'var(--font-mono)'
+                }}
+              >
+                {randomScore}
+              </motion.div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '12px' }}>
+                Out of 100
+              </div>
+            </motion.div>
+
+            {/* ACTION BUTTONS */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+            </div>
+
+            {/* END GAME BUTTON */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                console.log('✅ SCAMMED BUTTON CLICKED')
+                if (submitAction) submitAction('fell_for_scam')
+                setScore(randomScore)
+              }}
+              style={{
+                width: '100%',
+                padding: '16px 32px',
+                background: 'linear-gradient(135deg, #00e5ff, #00d4ff)',
+                color: '#000',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '16px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                zIndex: 50,
+                position: 'relative'
+              }}
+            >
+              BACK TO HOME
+            </motion.button>
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
+
+  // ✅ DETECTED DISPLAY - Show random score after detecting scam
+  if (gamePhase === 'detected_display' && randomScore > 0) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', overflow: 'auto' }}>
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} style={{ width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '20px' }}>
+          <div style={{ textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
+            {/* ✅ SUCCESS ALERT */}
+            <motion.div
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              style={{ fontSize: '100px', marginBottom: '24px' }}
+            >
+              🎯
+            </motion.div>
+
+            <h1 style={{
+              fontSize: '48px',
+              fontWeight: 700,
+              color: '#00ff88',
+              marginBottom: '16px',
+              letterSpacing: '2px',
+              textTransform: 'uppercase'
+            }}>
+              SCAM DETECTED!
+            </h1>
+
+            <p style={{
+              fontSize: '18px',
+              color: 'rgba(255,255,255,0.7)',
+              marginBottom: '40px',
+              lineHeight: '1.6'
+            }}>
+              You successfully identified and reported the fraud
+            </p>
+
+            {/* 📊 RANDOM SCORE DISPLAY */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              style={{
+                background: 'rgba(0,170,0,0.15)',
+                border: '2px solid #00ff88',
+                borderRadius: '16px',
+                padding: '40px',
+                marginBottom: '32px'
+              }}
+            >
+              <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '12px', letterSpacing: '2px' }}>
+                YOUR ROUND 2 SCORE
+              </div>
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+                style={{
+                  fontSize: '72px',
+                  fontWeight: 800,
+                  color: '#00ff88',
+                  fontFamily: 'var(--font-mono)'
+                }}
+              >
+                {randomScore}
+              </motion.div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '12px' }}>
+                Out of 100
+              </div>
+            </motion.div>
+
+            {/* STATUS INDICATORS */}
+            {paymentStep === 'reported' && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  background: 'rgba(0,170,0,0.2)',
+                  border: '1px solid #00ff88',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  marginBottom: '24px'
+                }}
+              >
+                <div style={{ color: '#00ff88', fontSize: '14px', fontWeight: 700 }}>
+                  ✅ Reported to Authorities
+                </div>
+              </motion.div>
+            )}
+
+            {paymentStep === 'blocked' && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  background: 'rgba(255,23,68,0.2)',
+                  border: '1px solid #ff1744',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  marginBottom: '24px'
+                }}
+              >
+                <div style={{ color: '#ff1744', fontSize: '14px', fontWeight: 700 }}>
+                  🚫 Scammer Blocked
+                </div>
+              </motion.div>
+            )}
+
+            {/* ACTION BUTTONS - Report & Block */}
+            {paymentStep !== 'reported' && paymentStep !== 'blocked' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px', position: 'relative', zIndex: 50 }}>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setPaymentStep('reported')
+                  }}
+                  style={{
+                    padding: '16px 24px',
+                    background: 'linear-gradient(135deg, #00aa00, #00ff00)',
+                    color: '#000',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textTransform: 'uppercase',
+                    zIndex: 50,
+                    position: 'relative'
+                  }}
+                >
+                  📋 Report
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setPaymentStep('blocked')
+                  }}
+                  style={{
+                    padding: '16px 24px',
+                    background: 'linear-gradient(135deg, #ff1744, #ff5577)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textTransform: 'uppercase',
+                    zIndex: 50,
+                    position: 'relative'
+                  }}
+                >
+                  🚫 Block
+                </motion.button>
+              </div>
+            )}
+
+            {/* END GAME BUTTON */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                console.log('✅ DETECTED BUTTON CLICKED')
+                if (submitAction) submitAction('detected_scam')
+                setScore(randomScore)
+              }}
+              style={{
+                width: '100%',
+                padding: '16px 32px',
+                background: 'linear-gradient(135deg, #00ff88, #00ffaa)',
+                color: '#000',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '16px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                zIndex: 50,
+                position: 'relative'
+              }}
+            >
+              BACK TO HOME
+            </motion.button>
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
+
   if (gamePhase === 'results') {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
@@ -1323,4 +1962,30 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
       </div>
     )
   }
+
+  // 🔴 DEBUG FALLBACK - Show what's happening if no phase matches
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div style={{ textAlign: 'center', maxWidth: '600px', background: 'rgba(0,0,0,0.5)', padding: '40px', borderRadius: '12px', border: '2px solid #ff1744' }}>
+        <h1 style={{ color: '#ff1744', fontSize: '24px', marginBottom: '16px' }}>⚠️ DEBUG: Phase Not Recognized</h1>
+        <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', textAlign: 'left', fontFamily: 'monospace', lineHeight: '1.8' }}>
+          <div>📊 Current State:</div>
+          <div>• gamePhase: {gamePhase}</div>
+          <div>• randomScore: {randomScore}</div>
+          <div>• paymentStep: {paymentStep}</div>
+          <div>• messages.length: {messages.length}</div>
+          <div style={{ marginTop: '16px', color: '#ffb700' }}>
+            {gamePhase === 'scammed_display' && randomScore === 0 && '❌ Score is 0, should be > 0'}
+            {gamePhase === 'detected_display' && randomScore === 0 && '❌ Score is 0, should be > 0'}
+            {gamePhase === 'chat' && '❌ Still in chat phase'}
+            {gamePhase === 'loading' && '⏳ Still loading'}
+          </div>
+        </div>
+        <button onClick={() => window.location.href = '/'} style={{ marginTop: '20px', padding: '12px 24px', background: '#ff1744', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+          Return Home
+        </button>
+      </div>
+    </div>
+  )
 }
+

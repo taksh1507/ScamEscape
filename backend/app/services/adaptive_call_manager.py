@@ -26,16 +26,14 @@ class AdaptiveCallManager:
             return CallPhase.FAILURE # Scammer failed (User won)
 
         if difficulty == "easy":
-            # Simple linear flow: Authority -> Urgency -> Pressure
+            # SHORTER: Authority -> Urgency (ask for payment) [skips Pressure for shorter conversation]
             if current_phase == CallPhase.AUTHORITY:
                 return CallPhase.URGENCY
             elif current_phase == CallPhase.URGENCY:
-                return CallPhase.PRESSURE
-            elif current_phase == CallPhase.PRESSURE:
-                return CallPhase.PRESSURE # Stay in pressure until end
+                return CallPhase.URGENCY # Stay in urgency, asking for details
             
         elif difficulty == "medium":
-            # Mix of trust + urgency, slight adaptation
+            # SHORTER: Authority -> Urgency (fewer exchanges)
             if user_action == "ask_verification":
                 return CallPhase.TRUST
             elif user_action in ["resist", "doubt"]:
@@ -45,27 +43,27 @@ class AdaptiveCallManager:
             elif current_phase == CallPhase.TRUST:
                 return CallPhase.URGENCY
             elif current_phase == CallPhase.URGENCY:
-                return CallPhase.PRESSURE
+                return CallPhase.URGENCY  # Stay in urgency asking for payment
             
         elif difficulty == "hard":
-            # Highly adaptive: switch strategies dynamically
+            # SHORTER: Still adaptive but faster progression
             if user_action == "resist":
-                # If resisting, try to build trust or apply extreme pressure
-                return random.choice([CallPhase.TRUST, CallPhase.PRESSURE])
+                # If resisting, try to build trust or move to urgency
+                return random.choice([CallPhase.TRUST, CallPhase.URGENCY])
             elif user_action == "engage":
-                # If engaging, reinforce authority or move to urgency
-                return random.choice([CallPhase.AUTHORITY, CallPhase.URGENCY])
+                # If engaging, move to urgency
+                return CallPhase.URGENCY
             elif user_action == "ask_verification":
-                # Hard scammers handle verification by building more trust
+                # Hard scammers handle verification by building trust
                 return CallPhase.TRUST
             
-            # Default progression for hard
+            # Default progression for hard - skip pressure, go straight to urgency
             if current_phase == CallPhase.AUTHORITY:
                 return random.choice([CallPhase.URGENCY, CallPhase.TRUST])
             elif current_phase == CallPhase.TRUST:
                 return CallPhase.URGENCY
             elif current_phase == CallPhase.URGENCY:
-                return CallPhase.PRESSURE
+                return CallPhase.URGENCY  # Stay in urgency asking for payment
                 
         return current_phase
 
@@ -89,7 +87,7 @@ class AdaptiveCallManager:
             return "hang_up"
 
         # Content-based heuristic
-        if any(word in msg for word in ["share", "give", "send", "otp", "password", "cvv", "card", "confirm"]):
+        if any(word in msg for word in ["share", "give", "send", "otp", "password", "cvv", "card", "confirm", "transaction", "transfer", "complete"]):
             return "share"
         if any(word in msg for word in ["why", "who", "id", "verify", "proof", "badge", "official", "credentials"]):
             return "ask_verification"

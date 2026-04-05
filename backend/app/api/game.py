@@ -72,6 +72,47 @@ async def api_room_leaderboard_mongodb(room_code: str):
         raise HTTPException(status_code=500, detail="Failed to retrieve leaderboard")
 
 
+# 🔥 ─── SQLite-based Leaderboard Endpoints (Persistent Storage) ───────────────────────────────────
+
+@router.get("/leaderboard/sqlite/global")
+def api_global_leaderboard_sqlite(limit: int = 100):
+    """Get top players from SQLite leaderboard"""
+    try:
+        from app.services.sqlite_score_store import SQLiteScoreStore
+        leaderboard = SQLiteScoreStore.get_leaderboard(limit=limit)
+        return {
+            "status": "success",
+            "source": "sqlite",
+            "leaderboard": leaderboard,
+            "total_entries": len(leaderboard)
+        }
+    except Exception as e:
+        log.error(f"Failed to get SQLite leaderboard: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve leaderboard")
+
+
+@router.get("/leaderboard/sqlite/player/{player_id}")
+def api_player_stats_sqlite(player_id: str):
+    """Get player stats from SQLite"""
+    try:
+        from app.services.sqlite_score_store import SQLiteScoreStore
+        stats = SQLiteScoreStore.get_player_stats(player_id)
+        if not stats:
+            return {
+                "status": "not_found",
+                "player_id": player_id,
+                "message": "Player not found in leaderboard"
+            }
+        return {
+            "status": "success",
+            "player_id": player_id,
+            "stats": stats
+        }
+    except Exception as e:
+        log.error(f"Failed to get player stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve player stats")
+
+
 @router.get("/analytics/global")
 async def api_global_analytics():
     """Get global game analytics from MongoDB"""
@@ -491,6 +532,73 @@ def submit_frontend_score(room_code: str, player_id: str, body: dict):
     return {"status": "ok", "message": "Score received"}
 
 
+@router.post("/save-round-score")
+def save_round_score(body: dict):
+    """Save Round 2 (Chat Payment) score to SQLite leaderboard with fraud detection result"""
+    try:
+        room_code = body.get("room_code", "").upper()
+        player_id = body.get("player_id", "")
+        round_number = body.get("round_number", 2)
+        score = body.get("score", 0)
+        result = body.get("result", None)  # 'scammed' or 'detected'
+        
+        if not room_code or not player_id:
+            log.error(f"❌ Missing room_code or player_id in save-round-score request")
+            raise HTTPException(status_code=400, detail="Missing room_code or player_id")
+        
+        if not (1 <= score <= 100):
+            log.error(f"❌ Invalid score {score} - must be between 1 and 100")
+            raise HTTPException(status_code=400, detail="Score must be between 1 and 100")
+        
+        # Get player info from game store
+        player = get_player(player_id)
+        nickname = player.nickname if player else "Anonymous"
+        
+        # Determine grade based on score
+        if score >= 90:
+            grade = 'A'
+        elif score >= 80:
+            grade = 'B'
+        elif score >= 70:
+            grade = 'C'
+        elif score >= 60:
+            grade = 'D'
+        else:
+            grade = 'F'
+        
+        # Save to SQLite via SQLiteScoreStore
+        from app.services.sqlite_score_store import SQLiteScoreStore
+        success = SQLiteScoreStore.save_score(
+            player_id=player_id,
+            nickname=nickname,
+            room_code=room_code,
+            round_number=round_number,
+            score=score,
+            grade=grade,
+            result=result
+        )
+        
+        if success:
+            log.info(f"✅ Round {round_number} score saved: {player_id} - {score}pts (result: {result})")
+            return {
+                "status": "success",
+                "message": "Score saved successfully",
+                "player_id": player_id,
+                "score": score,
+                "grade": grade,
+                "result": result
+            }
+        else:
+            log.error(f"❌ Failed to save round {round_number} score for {player_id}")
+            raise HTTPException(status_code=500, detail="Failed to save score to leaderboard")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"❌ Error in save-round-score endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error saving score: {str(e)}")
+
+
 @router.post("/score-conversation")
 async def score_conversation_groq(body: ScoreConversationRequest):
     """Score a full call conversation using GROQ AI - holistic evaluation"""
@@ -652,6 +760,7 @@ async def websocket_endpoint(ws: WebSocket, room_code: str, player_id: str):
                         
                         from app.services.adaptive_call_manager import AdaptiveCallManager
                         from app.services.ai_service import generate_phase_response
+                        from app.services.evaluation_service import evaluate_player_response
                         from app.constants.scenario_types import CallPhase
                         
                         call_state = game.call_states.get(player_id)
@@ -672,10 +781,9 @@ async def websocket_endpoint(ws: WebSocket, room_code: str, player_id: str):
                         )
                         log.info(f"Phase transition: {call_state.phase.value} -> {next_phase.value}")
                         
-                        # 🔥 FIX: If user chooses low-risk option, they WIN immediately (FAILURE for scammer)
-                        if risk_level == "low" and next_phase not in [CallPhase.SUCCESS, CallPhase.FAILURE]:
-                            log.info(f"✅ User chose safe option (low risk) - ending call as WIN (FAILURE)")
-                            next_phase = CallPhase.FAILURE
+                        # 🔥 EXTENDED CONVERSATION: Don't end call on first low-risk option
+                        # Allow conversation to continue naturally, scoring will happen when user explicitly hangs up or provides sensitive info
+                        # REMOVED: Automatic WIN on low-risk options - this was ending calls too early
                         
                         # 3. Update profile
                         AdaptiveCallManager.update_user_profile(call_state, action_type)
@@ -693,7 +801,11 @@ async def websocket_endpoint(ws: WebSocket, room_code: str, player_id: str):
                         
                         if next_phase in [CallPhase.SUCCESS, CallPhase.FAILURE]:
                             # Terminal phase, send a quick static message
-                            msg = "Call disconnected." if next_phase == CallPhase.FAILURE else "Transaction processed. Thank you."
+                            if next_phase == CallPhase.FAILURE:
+                                msg = "Call disconnected."
+                            else:
+                                # SUCCESS = User shared details and was scammed
+                                msg = "✅ Transaction Successful! Your details have been processed. Thank you."
                             ai_resp = {
                                 "message": msg,
                                 "suggested_actions": []
@@ -716,6 +828,21 @@ async def websocket_endpoint(ws: WebSocket, room_code: str, player_id: str):
                                 hang_up_action = {"option": "Hang up", "risk_level": "low", "tag": "safe", "explanation": "Hanging up is the safest response to a suspected scam.", "better_action": "None."}
                                 ai_resp.setdefault("suggested_actions", []).append(hang_up_action)
                         
+                        # 🔥 NEW: AI-POWERED EVALUATION
+                        log.info(f"🤖 Evaluating player action: {action_text}")
+                        scenario_context = f"Caller: {scenario_data['payload'].get('caller', 'Unknown')} | Scammer Type: {scenario_data['payload'].get('scammer_type', 'Unknown')}"
+                        
+                        evaluation = await evaluate_player_response(
+                            player_action=action_text,
+                            scenario_context=scenario_context,
+                            caller_name=scenario_data['payload'].get('caller', 'Unknown'),
+                            scammer_type=scenario_data['payload'].get('scammer_type', 'Unknown'),
+                            difficulty=game.difficulty,
+                            suggested_actions=ai_resp.get("suggested_actions", [])
+                        )
+                        
+                        log.info(f"✅ Evaluation result: {evaluation['status']} - Points: {evaluation['points_earned']}")
+                        
                         # 6. Update state
                         call_state.phase = next_phase
                         call_state.history.append({"role": "user", "message": action_text})
@@ -735,7 +862,7 @@ async def websocket_endpoint(ws: WebSocket, room_code: str, player_id: str):
                         # 🔥 Log phase transitions for debugging
                         log.info(f"✅ Player {player_id} action='{action_text}' -> action_type={action_type} -> phase={next_phase.value} - SAVED")
                         
-                        # Send update to player
+                        # Send update to player with AI evaluation
                         await send_to_player(ws, {
                             "event": "call_update",
                             "player_id": player_id,
@@ -743,6 +870,7 @@ async def websocket_endpoint(ws: WebSocket, room_code: str, player_id: str):
                                 "phase": next_phase.value,
                                 "message": ai_resp["message"],
                                 "suggested_actions": ai_resp["suggested_actions"],
+                                "evaluation": evaluation,  # 🔥 NEW: Include AI evaluation
                                 "ttl": time.time() + 30  # Message valid for 30 seconds
                             }
                         })

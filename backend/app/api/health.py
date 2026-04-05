@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.core.config import settings
 import os
 import time
+from app.services.evaluation_service import check_groq_rate_limit
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -24,4 +25,13 @@ def get_server_time():
     return {
         "server_time": time.time(),
         "timestamp_ms": int(time.time() * 1000)
+    }
+
+@router.get("/groq-rate-limit")
+async def check_groq_limit():
+    """Check Groq API rate limit and availability"""
+    rate_info = await check_groq_rate_limit()
+    return {
+        "status": "ok" if rate_info.get("status") == "ok" else rate_info.get("status"),
+        "rate_limit": rate_info
     }

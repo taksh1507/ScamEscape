@@ -354,6 +354,7 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
   const [transcript, setTranscript] = useState<{text: string, role: 'user' | 'scammer'}[]>([])
   const [suggestedActions, setSuggestedActions] = useState<any[]>([])
   const [decisionResult, setDecisionResult] = useState<any>(null)
+  const [evaluation, setEvaluation] = useState<any>(null)  // 🔥 Store AI evaluation feedback
   const [results, setResults] = useState<any>(null)
   const [totalRounds, setTotalRounds] = useState(1)
   const [currentRound, setCurrentRound] = useState(0)
@@ -361,9 +362,9 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
   const [ringtoneActive, setRingtoneActive] = useState(false)  // 🔥 Track ringtone status
   const [clockSkew, setClockSkew] = useState(0)  // 🔥 Track clock difference between client and server
   const [scamPhase, setScamPhase] = useState<'success' | 'failure' | null>(null)  // 🔥 Track if user was scammed
+  const [roundScore, setRoundScore] = useState(0)  // 🔥 Score for Round 1
+  const [userResponseCount, setUserResponseCount] = useState(0)  // 🔥 Count how many times user clicked options
   const [showResultsModal, setShowResultsModal] = useState(false)  // 🔥 Show results modal after round
-  const [showPaymentPopup, setShowPaymentPopup] = useState(false)  // 💰 Payment detection popup
-  const [paymentDetected, setPaymentDetected] = useState(false)  // 💰 Payment detected flag
   const [showPersonalMsg, setShowPersonalMsg] = useState(false)  // 👤 Personal message popup
   const [personalMsgAction, setPersonalMsgAction] = useState<'end' | 'continue' | null>(null)  // 👤 Which action triggered it
   const transcriptEndRef = useRef<HTMLDivElement>(null)
@@ -432,6 +433,26 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     }
   }, [])
 
+  // 🔴 Generate random score for Round 1 (Call Simulation)
+  const generateRound1Score = (phase: 'success' | 'failure') => {
+    if (phase === 'success') {
+      // ✅ User detected the scam successfully = 60-100 (higher rewards for smart detection)
+      return Math.floor(Math.random() * 41) + 60
+    } else {
+      // ❌ User got scammed = 1-50 (lower score for failure)
+      return Math.floor(Math.random() * 50) + 1
+    }
+  }
+
+  // 🔴 Generate score when results modal is shown
+  useEffect(() => {
+    if (showResultsModal && scamPhase && roundScore === 0) {
+      const score = generateRound1Score(scamPhase)
+      console.log(`📊 ROUND 1 SCORE GENERATED: ${score}/${scamPhase === 'failure' ? 100 : 50}`)
+      setRoundScore(score)
+    }
+  }, [showResultsModal, scamPhase, roundScore])
+
   const handleMessage = useCallback((evt: GameEvent) => {
     console.log('📬 CallSimulation event received:', evt.event, evt)
     
@@ -443,6 +464,10 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     } else if (evt.event === 'start_round') {
       console.log('🔔 START_ROUND EVENT:', evt.data)
       console.log('✅ start_round received - no strict TTL check needed (message just arrived from server)')
+      
+      // 🔥 RESET INTERACTION COUNT FOR NEW ROUND
+      setUserResponseCount(0)
+      console.log('🔄 User response count reset to 0 for new round')
       
       // Don't validate TTL for initial start_round - if the message arrived, it's fresh enough
       // TTL validation is for ensuring freshness during the game, not for the initial trigger
@@ -462,6 +487,12 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
       const { data, player_id: targetPlayerId } = evt;
       if (targetPlayerId === playerId) {
         console.log('📞 CALL_UPDATE: scammer message received - phase:', data.phase)
+        
+        // 🔥 Store AI evaluation if present (can be null for initial message)
+        if ('evaluation' in data) {
+          console.log('🤖 AI Evaluation received:', data.evaluation)
+          setEvaluation(data.evaluation)  // Set to evaluation or null
+        }
         
         // 🔥 FIX: Check if this is a terminal phase (scammed/congratulations) FIRST
         // TTL validation completely removed - accept all messages
@@ -494,6 +525,7 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
           setScamPhase(data.phase as 'success' | 'failure')  // 🔥 Track the phase
           setRingtoneActive(false)
           setSuggestedActions([])  // 🔥 Hide buttons immediately when call ends
+          setEvaluation(null)  // Clear evaluation when call ends
           setCallState('waiting_for_results')
           stopRing()
           cancelTTS()
@@ -505,12 +537,8 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
           
           console.log('📊 RESULT:', verdict)
           
-          // Speak the verdict
-          speakLine(verdict, () => {
-            console.log('✅ Result spoken, showing results modal...')
-            // Show the modal instead of navigating away
-            setShowResultsModal(true)
-          })
+          // 🔥 NO TTS FOR SCAMMED - Just show the modal immediately
+          setShowResultsModal(true)
           
           return
         }
@@ -631,6 +659,11 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     const optionText = typeof option === 'string' ? option : option.option;
     console.log('✏️ User selected option:', optionText)
     
+    // 🔥 INCREMENT USER RESPONSE COUNT (for every interaction)
+    const newResponseCount = userResponseCount + 1
+    setUserResponseCount(newResponseCount)
+    console.log(`📊 User response count: ${newResponseCount}`)
+    
     // Update transcript
     setTranscript(prev => [...prev, { text: optionText, role: 'user' }]);
     
@@ -638,58 +671,45 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     const riskLevel = typeof option === 'object' ? option.risk_level : 'medium'
     conversationLogRef.current.push({ role: 'user', text: optionText, risk_level: riskLevel })
     
-    // Provide immediate visual feedback
-    const target = e.currentTarget as HTMLButtonElement
-    target.style.background = 'rgba(255,23,68,0.2)'
-    target.style.borderColor = 'var(--red)'
-    target.style.pointerEvents = 'none'  // 🔥 Disable clicking
+    // Buttons remain open and clickable - no disabling
     
-    // 🔥 HANG-UP LOGIC: Check conversation depth and act accordingly
+    // 🔥 HANG-UP LOGIC: Hang up at ANY TIME = Success (escaped safely, not scammed)
     const isHangUp = optionText.toLowerCase().includes('hang up') 
                   || optionText.toLowerCase().includes('block')
                   || optionText.toLowerCase().includes('disconnect');
     
     if (isHangUp) {
-      // Count scammer messages to determine engagement level
-      const scammerMessageCount = transcript.filter(t => t.role === 'scammer').length
-      
-      console.log(`🛑 Hang-up detected! Scammer message count: ${scammerMessageCount}`)
-      
-      if (scammerMessageCount <= 1) {
-        // ✅ EARLY ESCAPE: Hung up before much engagement
-        console.log('✅ EARLY ESCAPE: User avoided the scam at the beginning!')
-        setScamPhase('success')  // User won
-        cancelTTS()
-        stopRing()
-        setCallState('waiting_for_results')
-        setShowResultsModal(true)
-        return
-      } else if (scammerMessageCount <= 3) {
-        // ⚠️ MID-CALL: Show "almost there" but continue conversation
-        console.log('⚠️ MID-CALL HANG-UP: Showing "almost there" and continuing conversation...')
-        
-        // Add special message to show they were almost scammed
-        setTranscript(prev => [...prev, { 
-          text: '💰 [TRANSACTION INITIATED] You were almost there! But they\'re still trying...', 
-          role: 'scammer' 
-        }])
-        
-        // Send hang-up but let backend know to continue conversation  
-        sendUserAction(option)
-        
-        // Keep conversation going instead of ending
-        setCallState('connected')
-        return
-      } else {
-        // ❌ LATE HANG-UP: They got too engaged, will be marked as scammed
-        console.log('❌ LATE HANG-UP: User got too engaged, marking as scammed...')
-        setScamPhase('failure')  // User lost
-        cancelTTS()
-        stopRing()
-        setCallState('waiting_for_results')
-        setShowResultsModal(true)
-        return
-      }
+      // ✅ HANG UP AT ANY TIME = SUCCESS: User escaped without falling for the scam
+      console.log('✅ HANG-UP AT ANY TIME: User escaped the scam! Marking as success...')
+      setScamPhase('success')  // Always success when hanging up
+      cancelTTS()
+      stopRing()
+      setCallState('waiting_for_results')
+      setShowResultsModal(true)
+      return
+    }
+    
+    // 🔥 SCAMMED OPTIONS: If user clicks options that indicate they fell for the scam
+    const isScammedOption = optionText.toLowerCase().includes('provide card')
+                         || optionText.toLowerCase().includes('give card')
+                         || optionText.toLowerCase().includes('give bank')
+                         || optionText.toLowerCase().includes('share bank')
+                         || optionText.toLowerCase().includes('share cvv')
+                         || optionText.toLowerCase().includes('send money')
+                         || optionText.toLowerCase().includes('confirm payment')
+                         || optionText.toLowerCase().includes('proceed payment')
+                         || optionText.toLowerCase().includes('authorize transfer')
+                         || optionText.toLowerCase().includes('otp');
+    
+    if (isScammedOption) {
+      // ❌ USER FELL FOR THE SCAM - they provided sensitive info
+      console.log('❌ USER PROVIDED SENSITIVE INFO - MARKING AS SCAMMED...')
+      setScamPhase('failure')  // User got scammed
+      cancelTTS()
+      stopRing()
+      setCallState('waiting_for_results')
+      setShowResultsModal(true)
+      return
     }
     
     // Non-hang-up actions: send and wait
@@ -746,15 +766,7 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     submitAction('hang_up')
   }, [stopRing, cancelTTS, submitAction])
 
-  // 💰 Detect Scam Handler
-  const handleDetectScam = useCallback(() => {
-    console.log('🚨 BUTTON CLICKED - Detect Scam pressed!')
-    setPaymentDetected(true)
-    setShowPaymentPopup(true)
-    console.log('💰 Payment popup should show now!')
-  }, [])
-
-  // 💰 End Game Handler - Shows personal message
+  //  End Game Handler - Shows personal message
   const handleEndGame = useCallback(() => {
     console.log('✅ END GAME PRESSED')
     setPersonalMsgAction('end')
@@ -763,29 +775,14 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
 
   // 👤 Confirm End Game - Finalize
   const confirmEndGame = useCallback(() => {
-    console.log('✅ GAME OVER - Payment detection!')
+    console.log('✅ GAME OVER - Player ended call')
     setShowPersonalMsg(false)
-    setShowPaymentPopup(false)
     setScamPhase('failure')
     cancelTTS()
     stopRing()
     setCallState('waiting_for_results')
     setShowResultsModal(true)
   }, [cancelTTS, stopRing])
-
-  // ❌ Continue Handler - Shows personal message
-  const handleContinue = useCallback(() => {
-    console.log('✅ CONTINUE PRESSED')
-    setPersonalMsgAction('continue')
-    setShowPersonalMsg(true)
-  }, [])
-
-  // 👤 Confirm Continue - Keep Playing
-  const confirmContinue = useCallback(() => {
-    console.log('✅ CONTINUE CONFIRMED')
-    setShowPersonalMsg(false)
-    setShowPaymentPopup(false)
-  }, [])
 
   // --- Renders ---
 
@@ -933,7 +930,21 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                 {transcript.map((line, i) => (
                   <TranscriptLine key={i} text={line.text} role={line.role} />
                 ))}
-                {transcript.length > 0 && transcript[transcript.length - 1].role === 'user' && (
+                
+                {/* 🔥 AI Evaluation Feedback - Shows dynamically after user action */}
+                {evaluation && typeof evaluation === 'object' && (
+                  <div style={{ marginTop: '20px', padding: '16px', background: evaluation.status === 'SURVIVED' ? 'rgba(0,230,118,0.15)' : 'rgba(255,23,68,0.15)', borderRadius: '6px', borderLeft: '4px solid ' + (evaluation.status === 'SURVIVED' ? '#00e676' : '#ff1744'), color: '#fff', fontSize: '12px', animation: 'slideIn 0.3s ease-out' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontWeight: 700 }}>
+                      <span>{evaluation.status === 'SURVIVED' ? '✅ SAFE ACTION' : '⚠️ RISKY ACTION'}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.6)' }}>+{evaluation.points_earned} pts</span>
+                    </div>
+                    <p style={{ margin: '8px 0', color: 'rgba(255,255,255,0.8)' }}>📋 {evaluation.reason}</p>
+                    <p style={{ margin: '8px 0', color: 'rgba(255,255,255,0.6)', fontSize: '11px' }}>💡 Better action: {evaluation.safer_action}</p>
+                    <p style={{ margin: '8px 0', color: 'rgba(255,255,255,0.5)', fontSize: '10px' }}>🎯 Confidence: {Math.round(evaluation.confidence * 100)}%</p>
+                  </div>
+                )}
+                
+                {transcript.length > 0 && transcript[transcript.length - 1].role === 'user' && !evaluation && (
                   <div style={{ marginTop: '20px', padding: '12px', background: 'rgba(0,230,118,0.1)', borderRadius: '4px', color: 'rgba(255,255,255,0.7)', fontSize: '14px', textAlign: 'center' }}>
                     ⏳ Processing your decision...
                   </div>
@@ -1001,42 +1012,6 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                   });
                 })()}
               </div>
-              
-              {/* 💰 Detect Scam Button */}
-              {callState === 'decision' && (
-                <button
-                  onClick={() => {
-                    console.log('✅ DETECT SCAM BUTTON PRESSED!')
-                    setShowPaymentPopup(true)
-                  }}
-                  style={{
-                    marginTop: '24px',
-                    padding: '16px 32px',
-                    background: 'linear-gradient(135deg, #ff6b6b, #ff1744)',
-                    border: '2px solid rgba(255,23,68,0.5)',
-                    color: '#fff',
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    borderRadius: '8px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '2px',
-                    transition: 'all 0.3s',
-                    textAlign: 'center',
-                    width: '100%'
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #ff7b7b, #ff2444)'
-                    e.currentTarget.style.boxShadow = '0 0 20px rgba(255,23,68,0.6)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #ff6b6b, #ff1744)'
-                    e.currentTarget.style.boxShadow = 'none'
-                  }}
-                >
-                  🚨 Detect Scam
-                </button>
-              )}
             </div>
           ) : callState === 'waiting_for_results' ? (
             // Waiting for round_result after terminal action
@@ -1157,16 +1132,21 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 1000
+          zIndex: 1000,
+          overflow: 'auto',
+          padding: '20px'
         }}>
           <div style={{
             textAlign: 'center',
-            maxWidth: '600px',
-            padding: '60px 40px',
+            maxWidth: '700px',
+            width: '100%',
+            padding: '40px 30px',
             background: 'rgba(20,20,30,0.9)',
             border: scamPhase === 'success' ? '3px solid #00ff88' : '3px solid #ff5577',
             borderRadius: '12px',
-            boxShadow: scamPhase === 'success' ? '0 0 40px rgba(0,255,136,0.3)' : '0 0 40px rgba(255,85,119,0.3)'
+            boxShadow: scamPhase === 'success' ? '0 0 40px rgba(0,255,136,0.3)' : '0 0 40px rgba(255,85,119,0.3)',
+            maxHeight: '90vh',
+            overflowY: 'auto'
           }}>
             {/* Icon */}
             <div style={{
@@ -1181,54 +1161,140 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
             <h1 style={{
               fontSize: '36px',
               fontWeight: 700,
-              color: scamPhase === 'success' ? '#00ff88' : '#ff5577',
+              color: '#00ff88',
               marginBottom: '16px',
               letterSpacing: '2px'
             }}>
-              {scamPhase === 'success' ? 'CONGRATULATIONS!' : 'YOU GOT SCAMMED!'}
+              YOU ESCAPED!
             </h1>
 
             {/* Description */}
             <p style={{
               fontSize: '18px',
               color: 'rgba(255,255,255,0.8)',
-              marginBottom: '32px',
+              marginBottom: '24px',
               lineHeight: '1.6'
             }}>
-              {scamPhase === 'success' 
-                ? 'You successfully avoided the scam by making the right decision or hanging up early. Well done!' 
-                : scamPhase === 'failure'
-                ? 'You fell for the scam. The scammer got what they wanted. Learn from this to protect yourself!'
-                : 'You were almost scammed but managed to escape. Stay alert!'}
+              You successfully hung up and escaped the scam. Well done!
             </p>
+
+            {/* 📊 ROUND 1 SCORE DISPLAY */}
+            {roundScore > 0 && (
+              <div style={{
+                background: 'rgba(0,170,0,0.15)',
+                border: '2px solid #00ff88',
+                borderRadius: '12px',
+                padding: '24px',
+                marginBottom: '24px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginBottom: '12px', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                  YOUR ROUND 1 SCORE
+                </div>
+                <div style={{
+                  fontSize: '64px',
+                  fontWeight: 800,
+                  color: '#00ff88',
+                  fontFamily: 'monospace',
+                  marginBottom: '8px'
+                }}>
+                  {roundScore}
+                </div>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                  Out of 100
+                </div>
+              </div>
+            )}
+
+            {/* Scam Details Box */}
+            <div style={{
+              background: 'rgba(0,0,0,0.4)',
+              border: '2px solid rgba(255,255,255,0.2)',
+              borderRadius: '8px',
+              padding: '20px',
+              marginBottom: '24px',
+              textAlign: 'left',
+              maxHeight: '240px',
+              overflowY: 'auto'
+            }}>
+              <div style={{
+                fontSize: '13px',
+                color: '#00ff88',
+                letterSpacing: '1.5px',
+                fontWeight: 700,
+                marginBottom: '16px',
+                textTransform: 'uppercase'
+              }}>
+                📊 SCAM DETAILS
+              </div>
+              
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px',
+                fontSize: '13px',
+                color: 'rgba(255,255,255,0.8)'
+              }}>
+                <div>
+                  <span style={{ color: '#00ff88', fontWeight: 700 }}>Messages:</span> {transcript.filter(t => t.role === 'scammer').length} sent
+                </div>
+                <div>
+                  <span style={{ color: '#00ff88', fontWeight: 700 }}>Duration:</span> ~{Math.round(transcript.filter(t => t.role === 'scammer').length * 30)} seconds
+                </div>
+                <div>
+                  <span style={{ color: '#00ff88', fontWeight: 700 }}>Type:</span> Call Verification Scam
+                </div>
+                <div>
+                  <span style={{ color: '#00ff88', fontWeight: 700 }}>Risk Level:</span> {transcript.filter(t => t.role === 'scammer').length <= 1 ? 'LOW' : transcript.filter(t => t.role === 'scammer').length <= 3 ? 'MEDIUM' : 'HIGH'}
+                </div>
+              </div>
+
+              <div style={{
+                marginTop: '16px',
+                paddingTop: '12px',
+                borderTop: '1px solid rgba(255,255,255,0.1)',
+                fontSize: '12px',
+                color: 'rgba(255,255,255,0.7)',
+                lineHeight: '1.6'
+              }}>
+                <span style={{ color: '#ff9800', fontWeight: 700 }}>🚩 Red Flags Detected:</span>
+                <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                  {transcript.filter(t => t.role === 'scammer').length > 0 && <li>Unsolicited call with urgent claims</li>}
+                  {transcript.filter(t => t.role === 'scammer').length > 1 && <li>Requesting sensitive information</li>}
+                  {transcript.filter(t => t.role === 'scammer').length > 2 && <li>Using authority/legitimacy tactics</li>}
+                  {transcript.filter(t => t.role === 'scammer').length > 4 && <li>Time pressure and threats</li>}
+                  {transcript.filter(t => t.role === 'scammer').length > 5 && <li>Emotional manipulation tactics</li>}
+                </ul>
+              </div>
+            </div>
 
             {/* Key Lesson */}
             <div style={{
-              background: scamPhase === 'success' ? 'rgba(0,255,136,0.1)' : 'rgba(255,85,119,0.1)',
-              border: scamPhase === 'success' ? '1px solid rgba(0,255,136,0.3)' : '1px solid rgba(255,85,119,0.3)',
+              background: scamPhase === 'failure' ? 'rgba(0,255,136,0.1)' : 'rgba(255,85,119,0.1)',
+              border: scamPhase === 'failure' ? '1px solid rgba(0,255,136,0.3)' : '1px solid rgba(255,85,119,0.3)',
               borderRadius: '8px',
-              padding: '20px',
+              padding: '16px',
               marginBottom: '32px',
               textAlign: 'left'
             }}>
               <div style={{
                 fontSize: '12px',
-                color: scamPhase === 'success' ? '#00ff88' : '#ff5577',
+                color: scamPhase === 'failure' ? '#00ff88' : '#ff5577',
                 letterSpacing: '2px',
                 fontWeight: 700,
-                marginBottom: '10px'
+                marginBottom: '8px'
               }}>
                 🎓 KEY TAKEAWAY
               </div>
               <p style={{
                 color: 'rgba(255,255,255,0.7)',
-                fontSize: '14px',
+                fontSize: '13px',
                 margin: 0,
                 lineHeight: '1.5'
               }}>
-                {scamPhase === 'success'
+                {scamPhase === 'failure'
                   ? '✅ Never share sensitive information over unsolicited calls. Always verify by hanging up and calling the official number independently.'
-                  : scamPhase === 'failure'
+                  : scamPhase === 'success'
                   ? '❌ Scammers use urgency, authority, and emotional pressure. Slow down and verify requests independently before sharing anything.'
                   : '⚠️ You caught yourself before it was too late. Trust your instincts and always verify requests through official channels.'}
               </p>
@@ -1241,12 +1307,12 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                 const params = `?room=${roomCode}&player=${playerId}`
                 if (currentRound === 1) {
                   // After Round 1 (Call), go to Round 2 (Chat)
-                  console.log(`🔀 Navigating to /simulation/chat${params}`)
+                  console.log(`� Navigating to /simulation/chat${params}`)
                   router.push(`/simulation/chat${params}`)
                 }
               }}
               style={{
-                background: scamPhase === 'success' ? 'linear-gradient(to right, #00ff88, #00ffaa)' : 'linear-gradient(to right, #ff5577, #ff7799)',
+                background: scamPhase === 'failure' ? 'linear-gradient(to right, #00ff88, #00ffaa)' : 'linear-gradient(to right, #ff5577, #ff7799)',
                 color: '#000',
                 padding: '16px 48px',
                 fontSize: '16px',
@@ -1257,6 +1323,8 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                 letterSpacing: '2px',
                 textTransform: 'uppercase',
                 transition: 'transform 0.2s',
+                position: 'relative',
+                zIndex: 50
               }}
               onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
               onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
@@ -1268,140 +1336,9 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
       )}
 
       {/* 💰 Payment Detection Popup Modal */}
-      {showPaymentPopup && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          background: 'rgba(0,0,0,0.85)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          backdropFilter: 'blur(5px)',
-          animation: 'fadeSlideUp 0.3s ease-out'
-        }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #1a1a1a 0%, #2a1a1a 100%)',
-            border: '3px solid #ff1744',
-            borderRadius: '12px',
-            padding: '48px 40px',
-            maxWidth: '500px',
-            width: '90%',
-            textAlign: 'center',
-            boxShadow: '0 0 40px rgba(255,23,68,0.5)',
-            position: 'relative'
-          }}>
-            {/* Alert Icon */}
-            <div style={{
-              fontSize: '80px',
-              marginBottom: '24px',
-              animation: 'pulse 1s infinite'
-            }}>
-              💳
-            </div>
+      {/* Payment popup removed - moved to Round 2 Chat Simulation */}
 
-            {/* Heading */}
-            <h2 style={{
-              fontSize: '32px',
-              color: '#ff1744',
-              marginBottom: '16px',
-              fontWeight: 700,
-              letterSpacing: '2px',
-              textTransform: 'uppercase'
-            }}>
-              Payment Detected!
-            </h2>
-
-            {/* Description */}
-            <p style={{
-              fontSize: '16px',
-              color: 'rgba(255,255,255,0.8)',
-              marginBottom: '32px',
-              lineHeight: '1.6'
-            }}>
-              The scammer is trying to get your payment! This is a clear sign of a scam. You can either:
-            </p>
-
-            {/* Options */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* End Game Button */}
-              <button
-                onClick={handleEndGame}
-                style={{
-                  padding: '16px 32px',
-                  background: 'linear-gradient(135deg, #ff1744, #ff5577)',
-                  border: 'none',
-                  color: '#fff',
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
-                  letterSpacing: '2px',
-                  transition: 'all 0.3s'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'scale(1.05)'
-                  e.currentTarget.style.boxShadow = '0 0 20px rgba(255,23,68,0.6)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'scale(1)'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-              >
-                🛑 End Game (You Lost)
-              </button>
-
-              {/* Continue Button */}
-              <button
-                onClick={handleContinue}
-                style={{
-                  padding: '16px 32px',
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '2px solid rgba(255,255,255,0.3)',
-                  color: '#fff',
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
-                  letterSpacing: '2px',
-                  transition: 'all 0.3s'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.7)'
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-                }}
-              >
-                ❌ Continue Resisting
-              </button>
-            </div>
-
-            {/* Warning Message */}
-            <div style={{
-              marginTop: '24px',
-              padding: '16px',
-              background: 'rgba(255,23,68,0.1)',
-              borderLeft: '4px solid #ff1744',
-              borderRadius: '4px',
-              fontSize: '12px',
-              color: 'rgba(255,255,255,0.7)',
-              textAlign: 'left'
-            }}>
-              <strong>⚠️ Warning:</strong> Real scammers always try to get money. If you send payment, you lose!
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 👤 Personal Message Popup Modal */}
+      {/* � Personal Message Popup Modal */}
       {showPersonalMsg && (
         <div style={{
           position: 'fixed',
@@ -1463,45 +1400,40 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {/* Confirm Button */}
+              {/* Confirm End Game Button */}
               <button
-                onClick={personalMsgAction === 'end' ? confirmEndGame : confirmContinue}
+                onClick={confirmEndGame}
                 style={{
                   padding: '14px 32px',
-                  background: personalMsgAction === 'end' 
-                    ? 'linear-gradient(135deg, #ff1744, #ff5577)' 
-                    : 'linear-gradient(135deg, #00e676, #00ff88)',
+                  background: 'linear-gradient(135deg, #ff1744, #ff5577)',
                   border: 'none',
-                  color: personalMsgAction === 'end' ? '#fff' : '#000',
+                  color: '#fff',
                   fontSize: '14px',
                   fontWeight: 700,
                   borderRadius: '6px',
                   cursor: 'pointer',
                   textTransform: 'uppercase',
                   letterSpacing: '1px',
-                  transition: 'all 0.3s'
+                  transition: 'all 0.3s',
+                  position: 'relative',
+                  zIndex: 50
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.transform = 'scale(1.05)'
-                  e.currentTarget.style.boxShadow = personalMsgAction === 'end'
-                    ? '0 0 20px rgba(255,23,68,0.6)'
-                    : '0 0 20px rgba(0,230,118,0.6)'
+                  e.currentTarget.style.boxShadow = '0 0 20px rgba(255,23,68,0.6)'
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.transform = 'scale(1)'
                   e.currentTarget.style.boxShadow = 'none'
                 }}
               >
-                {personalMsgAction === 'end' ? '🛑 Accept Loss' : '✅ Continue Playing'}
+                🛑 Accept Loss
               </button>
 
               {/* Cancel Button */}
               <button
                 onClick={() => {
                   setShowPersonalMsg(false)
-                  if (personalMsgAction === 'end') {
-                    setShowPaymentPopup(true)  // Go back to payment popup
-                  }
                 }}
                 style={{
                   padding: '14px 32px',
@@ -1514,7 +1446,9 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                   cursor: 'pointer',
                   textTransform: 'uppercase',
                   letterSpacing: '1px',
-                  transition: 'all 0.3s'
+                  transition: 'all 0.3s',
+                  position: 'relative',
+                  zIndex: 50
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)'
@@ -1546,9 +1480,26 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateX(-20px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
         @keyframes pulse {
           0%, 100% { transform: scale(1); opacity: 1; }
           50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-20px); }
+        }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+          20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>

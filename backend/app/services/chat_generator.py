@@ -45,10 +45,10 @@ if not client:
 async def _call_groq_with_retry(model: str, messages: list, max_tokens: int, temperature: float = 0.95, **kwargs):
     """
     Call GROQ API with automatic retry on rate limit (429 errors).
-    Implements exponential backoff: 2s, 4s, 8s, 16s, 32s, etc.
+    Optimized for FAST responses - only 3 retries max.
     """
-    max_retries = 10  # Increased from 3 to 10 retries
-    base_wait = 2
+    max_retries = 3  # Reduced from 10 to 3 for faster loading
+    base_wait = 1    # Reduced from 2 to 1 second
     
     for attempt in range(max_retries):
         try:
@@ -61,7 +61,7 @@ async def _call_groq_with_retry(model: str, messages: list, max_tokens: int, tem
                     temperature=temperature,
                     **kwargs
                 ),
-                timeout=20.0  # Increased timeout for retries
+                timeout=12.0  # Reduced from 20s to 12s for faster response
             )
             return response
         except RateLimitError as e:
@@ -71,7 +71,7 @@ async def _call_groq_with_retry(model: str, messages: list, max_tokens: int, tem
             log.warning(f"   Attempt {attempt + 1}/{max_retries} - Waiting {wait_time}s before retry...")
             if attempt == max_retries - 1:
                 # Last attempt failed
-                error_msg = f"GROQ rate limit exceeded after {max_retries} retries with backoff"
+                error_msg = f"GROQ rate limit exceeded after {max_retries} retries"
                 log.error(f"❌ {error_msg}")
                 raise RuntimeError(error_msg)
             await asyncio.sleep(wait_time)
@@ -86,14 +86,13 @@ async def _call_groq_with_retry(model: str, messages: list, max_tokens: int, tem
             error_str = str(e)
             if "429" in error_str or "rate_limit" in error_str.lower() or isinstance(e, RateLimitError):
                 wait_time = base_wait * (2 ** attempt)
-                log.warning(f"⚠️  Rate limit detected in error: {error_str[:100]}")
-                log.warning(f"   Attempt {attempt + 1}/{max_retries} - Waiting {wait_time}s...")
+                log.warning(f"⚠️  Rate limit detected: {error_str[:80]}")
                 if attempt == max_retries - 1:
                     raise RuntimeError(f"GROQ rate limit exceeded after {max_retries} retries")
                 await asyncio.sleep(wait_time)
             else:
-                # Non-retriable error
-                log.error(f"❌ Non-retriable error: {error_str}")
+                # Non-retriable error - fail immediately
+                log.error(f"❌ Error (non-retriable): {error_str[:80]}")
                 raise
 
 # MASTER PROMPT - Generates UNIQUE, DYNAMIC WhatsApp-style scam chats every time
@@ -441,11 +440,11 @@ Create a realistic conversation around THIS scenario, not others."""
                     "content": selected_prompt
                 }
             ],
-            max_tokens=1800,
-            temperature=0.97,
-            top_p=0.99,
-            frequency_penalty=1.0,
-            presence_penalty=0.6
+            max_tokens=1200,  # Reduced from 1800 for faster generation
+            temperature=0.75,  # Reduced from 0.97 for faster, more consistent response
+            top_p=0.85,        # Reduced from 0.99 for faster sampling
+            frequency_penalty=0.5,  # Reduced from 1.0 for faster generation
+            presence_penalty=0.2    # Reduced from 0.6 for faster generation
         )
         
         chat_text = response.choices[0].message.content.strip()
