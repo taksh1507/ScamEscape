@@ -1,4 +1,6 @@
 'use client'
+import Link from 'next/link'
+import { useState } from 'react'
 import { NAV_LINKS } from '@/lib/constants'
 
 interface NavbarProps {
@@ -6,6 +8,8 @@ interface NavbarProps {
 }
 
 export default function Navbar({ onEnter }: NavbarProps) {
+  const [isLiveScamHovered, setIsLiveScamHovered] = useState(false)
+  
   return (
     <nav style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
@@ -51,12 +55,37 @@ export default function Navbar({ onEnter }: NavbarProps) {
           </a>
         ))}
       </div>
-       <Link href="/live-scam-feed">
-        <span style={{ cursor: "pointer", color: "blue" }}>
-          🚨 Live Scam Feed
-        </span>
-      </Link>
       
+      {/* Live Scam Feed Badge */}
+      <Link href="/live-scam-feed" style={{ textDecoration: 'none' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          borderRadius: '20px',
+          background: isLiveScamHovered ? 'rgba(255,23,68,0.25)' : 'rgba(255,23,68,0.15)',
+          border: '1.5px solid var(--red)',
+          cursor: 'pointer',
+          transition: 'all 0.3s',
+          textDecoration: 'none',
+          boxShadow: isLiveScamHovered ? '0 0 20px rgba(255,23,68,0.4)' : 'none',
+        }}
+        onMouseEnter={() => setIsLiveScamHovered(true)}
+        onMouseLeave={() => setIsLiveScamHovered(false)}
+        >
+          <span style={{ fontSize: '16px' }}>🚨</span>
+          <span style={{
+            color: 'var(--red)',
+            fontSize: '12px',
+            fontWeight: 700,
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+          }}>
+            Live Feed
+          </span>
+        </div>
+      </Link>
       {/* CTA Button */}
       <button
         onClick={onEnter}

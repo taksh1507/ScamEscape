@@ -1,4 +1,4 @@
-TOTAL_ROUNDS = 2  # Round 1 (Call) + Round 2 (WhatsApp)
+TOTAL_ROUNDS = 2  # Round 1 (Call) + Round 2 (Chat Simulation)
 ROUND_DURATION_SECONDS = 30   # decision window (longer for immersive call round)
 ROUND_BUFFER_SECONDS = 4      # feedback display gap between rounds
 MAX_PLAYERS_PER_ROOM = 6

@@ -7,3 +7,8 @@ class SubmitActionRequest(BaseModel):
     player_id: str
     room_code: str
     action: str   # one of the DecisionKey values
+
+class ScoreConversationRequest(BaseModel):
+    conversation: str
+    scenario_type: str
+    caller_name: str

@@ -19,12 +19,17 @@ log = get_logger(__name__)
 # Initialize Groq client (compatible with OpenAI API)
 client = None
 if settings.GROQ_API_KEY:
-    client = AsyncOpenAI(
-        api_key=settings.GROQ_API_KEY,
-        base_url=settings.GROQ_BASE_URL
-    )
+    try:
+        client = AsyncOpenAI(
+            api_key=settings.GROQ_API_KEY,
+            base_url=settings.GROQ_BASE_URL
+        )
+        log.info(f"✅ GROQ AI Client initialized successfully (API key length: {len(settings.GROQ_API_KEY)})")
+    except Exception as e:
+        log.error(f"❌ Failed to initialize GROQ client: {e}")
+        client = None
 else:
-    log.warning("GROQ_API_KEY not found. AI features will be disabled. Fallback mock generator will be used.")
+    log.warning("⚠️ GROQ_API_KEY not found. AI features disabled - using mock generator.")
 
 # 🔥 REALISTIC FAMILY MEMBER NAMES & SCENARIOS FOR RELATIVE IMPERSONATION SCAMS
 FAMILY_MEMBER_SCENARIOS = {
@@ -124,19 +129,144 @@ def get_random_family_member() -> str:
     This function is only called once per Round 2 game."""
     return random.choice(list(FAMILY_MEMBER_SCENARIOS.keys()))
 
-# 🔥 SCAMMER TYPES - Randomly selected to ensure variety
+# 🔥 SCAMMER TYPES - 50+ DIVERSE TYPES FOR TRULY DYNAMIC CALLS
+# Ensures players get completely different scenarios every playthrough
 SCAMMER_TYPES = [
-    ("SBI Bank", "Account verification, fraudulent transaction"),
-    ("HDFC Bank", "Account verification, fraudulent transaction"),
-    ("ICICI Bank", "Account verification, fraudulent transaction"),
-    ("Flipkart/Amazon", "Order verification, account security"),
-    ("Income Tax/Government", "Income Tax Notice, Government Fine"),
-    ("Tech Support", "Windows/Device malware, system locked"),
-    ("BSNL/Jio Telecom", "Bill payment, account suspended"),
-    ("Paytm/Google Pay", "Wallet verification, payment issue"),
-    ("Housing.com/Property", "Property verification, booking confirmation"),
-    ("Apollo/Max Hospital", "Medical prescription verification, bill payment"),
-    ("Electricity/Water Dept", "Bill payment, service suspension"),
+    # BANKING SCAMS (10)
+    ("SBI Bank", "Account verification, fraudulent transaction alert"),
+    ("HDFC Bank", "Credit card fraud, account locked notification"),
+    ("ICICI Bank", "Suspicious login detected, verification required"),
+    ("Axis Bank", "Account safety alert, unusual activity"),
+    ("YES Bank", "Transaction verification, account security"),
+    ("Kotak Mahindra Bank", "Identity verification required"),
+    ("Bank of Baroda", "Account compromise alert"),
+    ("PNB Bank", "Fraudulent transaction detected"),
+    ("Canara Bank", "Security verification needed"),
+    ("Union Bank of India", "Account anomaly detected"),
+    
+    # FINTECH/WALLET SCAMS (8)
+    ("Paytm", "Wallet verification, payment blocked"),
+    ("Google Pay", "UPI account compromise alert"),
+    ("PhonePe", "Payment method verification needed"),
+    ("Amazon Pay", "Linked credit card verification"),
+    ("WhatsApp Pay", "Account security verification"),
+    ("BHIM App", "Digital payment verification required"),
+    ("Airtel Payments", "Account access verification"),
+    ("Mobikwik", "Wallet balance alert verification"),
+    
+    # E-COMMERCE SCAMS (8)
+    ("Flipkart", "Order verification, account security alert"),
+    ("Amazon India", "Account compromise, order cancellation"),
+    ("Myntra", "Payment method verification required"),
+    ("Swiggy", "Suspicious order detected, verify account"),
+    ("Zomato", "Payment profile verification needed"),
+    ("OLX", "Account security alert"),
+    ("Snapdeal", "Order verification required"),
+    ("Nykaa", "Account breach notification"),
+    
+    # GOVERNMENT SCAMS (12)
+    ("Income Tax Department", "IT notice, tax evasion detected"),
+    ("Police Department", "Criminal complaint filed against you"),
+    ("TDS Authority", "Tax deducted at source refund verification"),
+    ("GST Department", "GST filing overdue, compliance notice"),
+    ("Customs Department", "Import duty alert, clearance needed"),
+    ("RTO/Traffic Police", "Vehicle registration penalty, license suspension"),
+    ("Aadhaar Authority", "Identity verification required"),
+    ("Election Commission", "Voter ID discrepancy found"),
+    ("SEBI", "Stock market trading violation detected"),
+    ("CBI", "Fraud investigation alert"),
+    ("Ministry of Labour", "Employment record verification"),
+    ("Municipal Corporation", "Property tax payment overdue"),
+    
+    # TELECOM/UTILITIES (8)
+    ("Jio", "Outstanding bill, number deactivation alert"),
+    ("Airtel", "Unpaid recharge, service suspension notice"),
+    ("VI (Vodafone)", "Account balance verification"),
+    ("BSNL", "Landline bill payment, service cut"),
+    ("MTNL", "Billing verification required"),
+    ("Electricity Department", "Outstanding bill, connection cut-off"),
+    ("Water Authority", "Water supply suspension alert"),
+    ("Gas Department", "Meter inspection, safety alert"),
+    
+    # TECH/CYBERSECURITY SCAMS (10)
+    ("Microsoft Support", "Windows malware detected, system locked"),
+    ("Apple Support", "iCloud account compromise alert"),
+    ("Google Security", "Gmail account breach detected"),
+    ("Facebook Security", "Account suspicious activity, verification"),
+    ("Instagram", "Account compromised, password reset"),
+    ("Netflix", "Payment method verification required"),
+    ("PlayStation Network", "Account security alert"),
+    ("Amazon Web Services", "Unauthorized access detected"),
+    ("Zoom Security", "Account takeover attempt detected"),
+    ("Norton Antivirus", "Virus threat detected, purchase protection"),
+    
+    # TRAVEL/BOOKING SCAMS (8)
+    ("MakeMyTrip", "Flight booking verification"),
+    ("Goibibo", "Hotel reservation verification needed"),
+    ("Agoda", "Booking confirmation alert"),
+    ("OYO", "Room booking verification"),
+    ("Ixigo", "Flight ticket verification"),
+    ("Cleartrip", "Travel booking confirmation"),
+    ("Air India", "Flight ticket verification needed"),
+    ("IRCTC", "Train ticket cancellation alert"),
+    
+    # INVESTMENT/CRYPTO SCAMS (8)
+    ("Bitcoin Trading Group", "Investment opportunity, limited spots"),
+    ("Stock Market Group", "Trading signal exclusive access"),
+    ("Cryptocurrency Exchange", "Wallet verification required"),
+    ("Forex Trading", "Account verification for trading"),
+    ("Gold Investment", "Purchase verification alert"),
+    ("Mutual Fund Platform", "KYC verification required"),
+    ("Cryptocurrency ATM", "Account verification needed"),
+    ("Investment Advisory", "Market tip exclusive access"),
+    
+    # JOB RECRUITMENT SCAMS (8)
+    ("Google Recruitment", "Job interview follow-up, documentation"),
+    ("Amazon Careers", "Background verification fee"),
+    ("Microsoft Hiring", "Onboarding verification"),
+    ("Goldman Sachs", "Employment verification needed"),
+    ("McKinsey & Company", "Final interview status confirmation"),
+    ("Accenture", "Document verification for hiring"),
+    ("Infosys", "Joining verification alert"),
+    ("TCS", "Background check verification"),
+    
+    # EDUCATION SCAMS (6)
+    ("IIT/JEE Coaching", "Admission verification fee"),
+    ("UPSC Coaching", "Course enrollment verification"),
+    ("University Admission", "Document verification alert"),
+    ("Online Course Platform", "Payment verification required"),
+    ("Scholarship Committee", "Award verification required"),
+    ("Exam Hall Ticket", "Verification alert"),
+    
+    # HEALTHCARE SCAMS (6)
+    ("Apollo Hospital", "Medical record verification"),
+    ("Max Healthcare", "Prescription verification alert"),
+    ("Fortis Hospital", "Bill payment verification"),
+    ("Johns Hopkins", "Medical report verification"),
+    ("AIIMS", "Appointment confirmation alert"),
+    ("Medanta Hospital", "Insurance verification needed"),
+    
+    # INSURANCE SCAMS (6)
+    ("ICICI Prudential", "Policy verification needed"),
+    ("LIC of India", "Insurance claim verification"),
+    ("HDFC Life", "Policy document verification"),
+    ("Bajaj Allianz", "Coverage verification alert"),
+    ("Reliance Insurance", "Claim status verification"),
+    ("SBI Life", "Premium payment verification"),
+    
+    # PROPERTY/REAL ESTATE SCAMS (6)
+    ("Housing.com", "Property listing verification"),
+    ("MagicBricks", "Property booking confirmation"),
+    ("99acres", "Land deed verification"),
+    ("Square Yards", "Real estate transaction alert"),
+    ("Property Circle", "Listing verification needed"),
+    ("Commonfloor", "Broker verification alert"),
+    
+    # UTILITY/SERVICE SCAMS (4)
+    ("Electricity Dept SMS", "Bill pending, connection cut notice"),
+    ("Water Supply", "Meter reading verification"),
+    ("Broadband ISP", "Bill overdue, service suspension"),
+    ("Cable TV Provider", "Recharge verification needed"),
 ]
 
 SCENARIO_PROMPT_TEMPLATE = """
@@ -155,10 +285,20 @@ Generate a JSON object for a "{difficulty}" difficulty scam call. ALL CONTENT MU
 - DO NOT mention competing services or organizations
 - If you catch yourself generating the wrong type, STOP and regenerate with ONLY {scammer_type}
 
+🎲 UNIQUENESS REQUIREMENT (CRITICAL FOR REALISM):
+You MUST create a COMPLETELY DIFFERENT scenario each time with UNIQUE details:
+- Different names (don't use common names repeatedly)
+- Different amounts (vary the currency values)
+- Different timelines (vary the urgency deadlines - 10 min, 2 hours, by 6 PM, etc.)
+- Different tactics (vary the pressure type - fraud threat, account freeze, points expiry, upgrade needed, etc.)
+- Different specific details (company department, reference numbers, specific issues)
+- Different emotional angles (fear of loss, excitement from opportunity, authority pressure)
+
 YOUR TASK: Create a UNIQUE AND REALISTIC Indian scam scenario for this specific scammer type above.
 - NEVER mix scammer types
 - NEVER deviate from the assigned type
 - Create ORIGINAL content (NOT generic or repeated patterns)
+- Make this scenario DIFFERENT from standard scams
 
 Rules:
 1. Act as the scammer. Use ENGLISH throughout. Include Indian cultural context and organizations.
@@ -223,6 +363,8 @@ Before returning JSON, verify:
 - Caller name matches the scammer type assigned above
 - Script content ONLY discusses the assigned scammer type topic
 - NO mixing of bank issues with Flipkart calls, or telecom with tax calls, etc.
+- Script is UNIQUE with DIFFERENT details, amounts, tactics, and approaches
+- You haven't used overly generic phrases that repeat every time
 - If you generated the wrong type, DELETE that and start fresh with ONLY the correct type
 
 JSON format:
@@ -273,7 +415,7 @@ RESPOND WITH ONE MESSAGE ONLY (like texting family in panic):
 """
 
 PHASE_RESPONSE_PROMPT = """
-⚙️ STRICT SINGLE-MESSAGE CHAT MODE
+⚙️ STRICT SINGLE-MESSAGE CHAT MODE WITH DYNAMIC & UNIQUE OPTIONS
 
 You are a scammer in a REAL-TIME WHATSAPP CHAT simulation.
 
@@ -286,12 +428,16 @@ You are a scammer in a REAL-TIME WHATSAPP CHAT simulation.
 6. Natural urgency but realistic tone
 7. NEVER restart the conversation
 8. NEVER repeat previous messages
+9. 🎲 UNIQUENESS: Each response must be COMPLETELY DIFFERENT from previous ones
+10. 🎲 NO TEMPLATES: Vary your pressure tactics, arguments, and approach
+11. 🎲 BE CREATIVE: Use different reasons, timelines, and emotional appeals
 
 📱 CHAT BEHAVIOR:
 - Feel like real messaging, not formal letter
 - Slight pressure but believable
 - Use real WhatsApp language patterns
 - Short and punchy
+- 🎲 IMPORTANT: Vary your tone and approach - don't use the same pressure tactic twice
 
 🎯 SCENARIO LOCK (NEVER CHANGE):
 You are: {persona_name}
@@ -300,26 +446,63 @@ Type: {scam_type}
 Stage: {stage}
 
 This is your ONLY scenario. Do NOT switch between different stories.
+Use SPECIFIC details from this scenario to make responses unique.
 
 👤 CONTEXT (for consistency):
 - Player behavior: {behavior_profile}
 - What they said: {last_player_message}
 - Difficulty: {difficulty}
 - Your tone: {tone}
+- History: {history}
 
-📝 RESPOND WITH VALID JSON (SINGLE MESSAGE ONLY):
+🎲 UNIQUENESS REQUIREMENTS:
+- Don't repeat the same pressure angle (if you said "limited time", try "verification needed" next)
+- Don't use the same numbers/amounts twice
+- Don't repeat the same question twice
+- Vary emotional appeals: urgency vs official requirement vs threat vs help/assistance
+- Use scenario-specific details (actual organization names, specific amounts, real procedures)
+
+🎮 DYNAMIC RESPONSE OPTIONS:
+Generate 3-4 realistic VARIED player response options for this moment.
+Each option represents a different strategy the player might use.
+Options should be:
+- CONTEXTUAL to your current message
+- VARIED (not all high-risk or all safe)
+- APPROPRIATE to difficulty level
+- REALISTIC (not absurd or obvious)
+
+📝 RESPOND WITH VALID JSON:
 {{
-  "message": "YOUR ONE SHORT MESSAGE HERE IN ENGLISH (max 2 lines, like WhatsApp)",
-  "typing_delay_ms": 1000
+  "message": "YOUR ONE SHORT MESSAGE HERE IN ENGLISH (max 2 lines, like WhatsApp) - MAKE IT UNIQUE AND SCENARIO-SPECIFIC",
+  "typing_delay_ms": 1000,
+  "suggested_actions": [
+    {{"option": "First player response option (varied from others)", "risk_level": "high|medium|low", "tag": "dangerous|risky|cautious|safe", "explanation": "Why this is risky/safe", "better_action": "What they should do instead"}},
+    {{"option": "Second player response option (different approach)", "risk_level": "high|medium|low", "tag": "dangerous|risky|cautious|safe", "explanation": "Why this is risky/safe", "better_action": "What they should do instead"}},
+    {{"option": "Third player response option (third strategy)", "risk_level": "high|medium|low", "tag": "dangerous|risky|cautious|safe", "explanation": "Why this is risky/safe", "better_action": "What they should do instead"}},
+    {{"option": "Hang up and report", "risk_level": "low", "tag": "safe", "explanation": "Disconnecting is the safest action.", "better_action": "Always the best choice"}}
+  ]
 }}
 
-⚠️ EXAMPLE OUTPUTS:
-✅ GOOD: {{"message": "Your account has suspicious activity. Need to verify ASAP", "typing_delay_ms": 1500}}
-✅ GOOD: {{"message": "Hi Rahul! My car met accident, urgent need money", "typing_delay_ms": 800}}
-❌ BAD: {{"message": "Story 1: accident\nStory 2: jail\nStory 3: hospital" ...}}
-❌ BAD: Multiple paragraphs or scenarios
+⚠️ DIFFICULTY MODIFIERS:
+- EASY: Obvious risky options (share OTP, give passwords) vs safe options (call bank, hang up)
+- MEDIUM: Mix of tempting but dangerous vs safe options
+- HARD: All options seem reasonable but some are subtle traps
 
-RESPOND NOW WITH ONLY ONE MESSAGE:
+⚠️ EXAMPLE OUTPUT (vary from this each time):
+{{
+  "message": "Your account will be blocked in 10 minutes if not verified",
+  "typing_delay_ms": 1500,
+  "suggested_actions": [
+    {{"option": "Share my OTP to verify", "risk_level": "high", "tag": "dangerous", "explanation": "Scammers use OTP to steal your account", "better_action": "Never share OTP with anyone"}},
+    {{"option": "Call my bank directly", "risk_level": "low", "tag": "safe", "explanation": "Official verification through bank is secure", "better_action": "Always verify independently"}},
+    {{"option": "Ask for employee ID", "risk_level": "medium", "tag": "cautious", "explanation": "Scammers can fake IDs easily", "better_action": "Call official bank number instead"}},
+    {{"option": "Hang up and report", "risk_level": "low", "tag": "safe", "explanation": "Disconnecting prevents further manipulation", "better_action": "Report to your bank"}}
+  ]
+}}
+
+🎲 NEXT RESPONSE MUST BE COMPLETELY DIFFERENT FROM ABOVE - CHANGE YOUR APPROACH!
+
+RESPOND NOW WITH MESSAGE AND DYNAMIC OPTIONS:
 """
 
 def _validate_scenario_matches_type(scenario_data: Dict[str, Any], expected_type: str) -> bool:
@@ -445,7 +628,9 @@ async def generate_call_scenario(difficulty: str = "medium") -> Optional[Dict[st
     try:
         # 🔥 RANDOMLY SELECT SCAMMER TYPE TO ENSURE VARIETY
         selected_scammer_type, scammer_detail = random.choice(SCAMMER_TYPES)
-        log.info(f"🎲 Round 1: Selected scammer type: {selected_scammer_type}")
+        log.info(f"🎲 SCENARIO SELECTION - Type: {selected_scammer_type}")
+        log.info(f"📋 Details: {scammer_detail}")
+        log.info(f"📦 Total types available: {len(SCAMMER_TYPES)}")
         
         # Build prompt with SPECIFIC scammer type
         prompt = SCENARIO_PROMPT_TEMPLATE.format(
@@ -459,7 +644,7 @@ async def generate_call_scenario(difficulty: str = "medium") -> Optional[Dict[st
         variation_seed = int(time.time() * 1000) % 10000
         prompt += f"\n\nGeneration ID: {variation_seed} — Create a COMPLETELY FRESH scenario for {selected_scammer_type}. Use DIFFERENT details, names, amounts, situations from previous scenarios."
         
-        log.info(f"🎲 Generating {selected_scammer_type} scenario for difficulty: {difficulty}")
+        log.info(f"🎲 Generating {selected_scammer_type} scenario for difficulty: {difficulty} (seed={variation_seed})")
         
         response = await client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -519,11 +704,18 @@ async def generate_phase_response(
     Generates a dynamic response for a specific phase of the scam call.
     CRITICAL: Extracts ONLY the first message to enforce chat-like behavior.
     Uses full scenario context for richer, more realistic responses.
+    ✅ GUARANTEED UNIQUE: High temperature, uniqueness seed, anti-repetition parameters
     """
+    # 🔥 DEBUG: Log client status
+    log.info(f"🎯 generate_phase_response called - Client available: {client is not None}")
+    
     if not client:
+        log.warning(f"⚠️ No AI client - using mock response for phase {phase.value}")
         return _get_mock_phase_response(phase, difficulty)
 
     try:
+        log.info(f"📡 Calling GROQ API for phase: {phase.value}, difficulty: {difficulty}")
+        
         history_text = "\n".join(history[-3:]) if history else "None"
         
         # 🔥 NEW: Include scenario context for better AI understanding
@@ -534,6 +726,10 @@ SCENARIO CONTEXT (for consistency):
 - Full Caller Script: {' '.join(scenario_details.get('script', []))}
 - Scenario Type: {scammer_type}
 """
+        
+        # Add uniqueness seed to force completely different responses
+        import time
+        uniqueness_seed = int(time.time() * 1000) % 100000
         
         prompt = PHASE_RESPONSE_PROMPT.format(
             phase=phase.value,
@@ -549,15 +745,26 @@ SCENARIO CONTEXT (for consistency):
             last_player_message=last_action,
             tone="manipulative"
         )
+        
+        # Add uniqueness instruction
+        prompt += f"\n\n🔥 UNIQUENESS CHECKPOINT #{uniqueness_seed}:\nGenerate a COMPLETELY DIFFERENT response from any previous generation. Use novel arguments, different pressure tactics, unexpected details. Make this response UNIQUE and REALISTIC."
 
+        log.info(f"🔥 Uniqueness seed: {uniqueness_seed} - forcing novel response generation")
+        
         response = await client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are a professional scammer operating from an Indian context in a training simulation. Respond ONLY in ENGLISH with ONE SHORT MESSAGE at a time, like WhatsApp chat. Use realistic Indian scam tactics. Be convincing but natural. NEVER output multiple scenarios or paragraphs."},
+                {"role": "system", "content": "🔥 CRITICAL: You are a professional scammer in a training simulation. Respond ONLY in ENGLISH with ONE SHORT MESSAGE at a time, like WhatsApp chat. Use realistic Indian scam tactics. Be convincing but natural. NEVER output multiple scenarios or paragraphs. NEVER repeat previous responses - ALWAYS be creatively unique. Each response MUST use different pressure tactics, arguments, and emotional angles. Vary your approach constantly. Use novel details, unexpected phrases, different tactical approaches. DO NOT use template language. Make each message feel naturally different from others."},
                 {"role": "user", "content": prompt}
             ],
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
+            temperature=0.98,  # 🔥 MAXIMUM variation for unique responses
+            top_p=0.99,         # 🔥 Allow maximum diversity
+            frequency_penalty=1.0,  # 🔥 Heavily penalize repetition
+            presence_penalty=0.6     # 🔥 Encourage new content
         )
+        
+        log.info(f"✅ GROQ API response received successfully")
         
         content = response.choices[0].message.content
         if not content:
@@ -571,20 +778,48 @@ SCENARIO CONTEXT (for consistency):
             # Take only the first line/sentence
             first_message = message.split('\n')[0]
             scenario_data["message"] = first_message
+            log.info(f"💬 Generated message: {first_message[:60]}...")
         
         # Set default typing delay if not provided
         if "typing_delay_ms" not in scenario_data:
             scenario_data["typing_delay_ms"] = 1000
         
-        # 🔥 CRITICAL FIX: Add suggested_actions if missing from AI response
+        # 🔥 IMPROVED: Only use mock fallback if AI truly fails
         if "suggested_actions" not in scenario_data or not scenario_data["suggested_actions"]:
-            log.info(f"⚠️ AI didn't generate suggested_actions, using fallback mock options")
-            mock_response = _get_mock_phase_response(phase, difficulty)
-            scenario_data["suggested_actions"] = mock_response.get("suggested_actions", [])
-            
+            log.warning(f"⚠️ AI didn't generate suggested_actions, trying regeneration...")
+            # Try once more with explicit instruction
+            try:
+                retry_prompt = f"You MUST generate suggested_actions JSON array with 3-4 player options. Each option MUST have: option (text), risk_level (high/medium/low), tag (dangerous/risky/cautious/safe), explanation, better_action. Return valid JSON."
+                retry_response = await asyncio.wait_for(
+                    client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[
+                            {"role": "system", "content": "Generate suggested_actions as valid JSON array."},
+                            {"role": "user", "content": retry_prompt}
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.8
+                    ),
+                    timeout=5.0
+                )
+                retry_data = json.loads(retry_response.choices[0].message.content)
+                if "suggested_actions" in retry_data:
+                    scenario_data["suggested_actions"] = retry_data["suggested_actions"]
+                    log.info(f"✅ Retry succeeded - got suggested_actions from AI")
+                else:
+                    log.info(f"⚠️ Retry didn't have suggested_actions, using mock")
+                    mock_response = _get_mock_phase_response(phase, difficulty)
+                    scenario_data["suggested_actions"] = mock_response.get("suggested_actions", [])
+            except:
+                log.info(f"⚠️ Fallback to mock options after retry failed")
+                mock_response = _get_mock_phase_response(phase, difficulty)
+                scenario_data["suggested_actions"] = mock_response.get("suggested_actions", [])
+        
+        log.info(f"✅ Dynamic response generated successfully from GROQ")
         return scenario_data
     except Exception as e:
-        log.error(f"Error generating phase response: {e}")
+        log.error(f"❌ Error generating phase response from GROQ: {e}", exc_info=True)
+        log.warning(f"⚠️ Falling back to mock response for phase {phase.value}")
         return _get_mock_phase_response(phase, difficulty)
 
 def _get_mock_phase_response(phase: CallPhase, difficulty: str) -> Dict[str, Any]:

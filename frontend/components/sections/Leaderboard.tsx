@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shield, Zap, Target, Crown, Search, Activity, ChevronRight, Plus, RotateCcw, AlertTriangle, ArrowRight, Play } from 'lucide-react';
-import { NAV_LINKS } from '@/lib/constants';
 
 // ─── Design Tokens (same as main website globals.css) ─────────────────────
 // Uses CSS variables for consistency across the entire app
@@ -113,61 +112,78 @@ export default function Leaderboard({ roomCode, playerId, isRound2Game = false }
   useEffect(() => { setAgents(LeaderboardService.load()); }, []);
   useEffect(() => { if (agents.length > 0) LeaderboardService.save(agents); }, [agents]);
 
-  // 🔥 Load game results from localStorage for Round 2 games
+  // 🔥 Load REAL leaderboard from backend when game is finished
   useEffect(() => {
-    if (isRound2Game) {
-      try {
-        const leaderboardData = localStorage.getItem('leaderboard_scores');
-        if (leaderboardData) {
-          const gameResults = JSON.parse(leaderboardData);
-          console.log('🔥 Loaded game results from localStorage:', gameResults);
+    if (roomCode && isRound2Game) {
+      const fetchLeaderboard = async () => {
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+          const response = await fetch(`${baseUrl}/rooms/${roomCode}/leaderboard`)
           
-          // Find current player result
-          const current = gameResults.find((r: any) => r.playerId === playerId);
-          if (current) {
-            setCurrentPlayerResult(current);
+          if (response.ok) {
+            const data = await response.json()
+            console.log('✅ Real leaderboard loaded:', data)
+            
+            // Convert backend leaderboard to Agent format
+            const realLeaderboard: Agent[] = data.leaderboard.map((entry: any) => ({
+              id: entry.player_id,
+              codename: entry.nickname,
+              score: entry.score,
+              accuracy: 85,
+              difficulty: 'Medium',
+              timestamp: Date.now(),
+            }))
+            
+            setAgents(realLeaderboard)
+            
+            // Find current player in the leaderboard
+            const currentPlayer = realLeaderboard.find(a => a.id === playerId)
+            if (currentPlayer) {
+              setCurrentPlayerResult(currentPlayer)
+            }
+          } else {
+            console.error('Failed to fetch leaderboard:', response.status)
+            // Fallback to localStorage
+            const leaderboardData = localStorage.getItem('leaderboard_scores')
+            if (leaderboardData) {
+              const gameResults = JSON.parse(leaderboardData)
+              const agents: Agent[] = gameResults.map((r: any) => ({
+                id: r.playerId,
+                codename: r.codename || `PLAYER_${r.playerId.substring(0, 8).toUpperCase()}`,
+                score: r.total_score,
+                accuracy: r.round2_score > 0 ? 95 : 0,
+                difficulty: 'Medium',
+                timestamp: new Date(r.timestamp).getTime(),
+              }))
+              setAgents(agents)
+              const current = agents.find(a => a.id === playerId)
+              if (current) setCurrentPlayerResult(current)
+            }
           }
-          
-          // Merge game results with existing agents
-          setAgents((prevAgents) => {
-            const updated = [...prevAgents];
-            
-            gameResults.forEach((result: any) => {
-              const existingIndex = updated.findIndex((a) => a.id === result.playerId);
-              
-              if (existingIndex >= 0) {
-                // Update existing agent with new scores and codename
-                updated[existingIndex] = {
-                  ...updated[existingIndex],
-                  score: result.total_score,
-                  codename: result.codename || updated[existingIndex].codename,
-                  round1_score: result.round1_score,
-                  round2_score: result.round2_score,
-                  timestamp: new Date(result.timestamp).getTime(),
-                };
-              } else {
-                // Create new agent entry from game result
-                updated.push({
-                  id: result.playerId,
-                  codename: result.codename || `PLAYER_${result.playerId.substring(0, 8).toUpperCase()}`,
-                  score: result.total_score,
-                  round1_score: result.round1_score,
-                  round2_score: result.round2_score,
-                  accuracy: (result.round2_score > 0 ? 95 : 0), // Assume 95% accuracy if not scammed
-                  difficulty: 'Medium',
-                  timestamp: new Date(result.timestamp).getTime(),
-                });
-              }
-            });
-            
-            return updated;
-          });
+        } catch (error) {
+          console.error('Error fetching leaderboard:', error)
+          // Fallback to localStorage
+          const leaderboardData = localStorage.getItem('leaderboard_scores')
+          if (leaderboardData) {
+            const gameResults = JSON.parse(leaderboardData)
+            const agents: Agent[] = gameResults.map((r: any) => ({
+              id: r.playerId,
+              codename: r.codename || `PLAYER_${r.playerId.substring(0, 8).toUpperCase()}`,
+              score: r.total_score,
+              accuracy: r.round2_score > 0 ? 95 : 0,
+              difficulty: 'Medium',
+              timestamp: new Date(r.timestamp).getTime(),
+            }))
+            setAgents(agents)
+            const current = agents.find(a => a.id === playerId)
+            if (current) setCurrentPlayerResult(current)
+          }
         }
-      } catch (error) {
-        console.error('Error loading game results:', error);
       }
+      
+      fetchLeaderboard()
     }
-  }, [isRound2Game, playerId]);
+  }, [roomCode, playerId, isRound2Game])
 
   const addMockScore = () => {
     // Navigate to play page to join game
@@ -203,98 +219,14 @@ export default function Leaderboard({ roomCode, playerId, isRound2Game = false }
       color:      TOKEN.white,
       fontFamily: 'var(--font-body)',
       overflowX:  'hidden',
+      paddingTop: 0,
     } as React.CSSProperties,
 
-    // Navbar
-    nav: {
-      position:       'sticky',
-      top:            0,
-      zIndex:         100,
-      height:         '64px',
-      borderBottom:   `1px solid ${TOKEN.border}`,
-      background:     TOKEN.bgNav,
-      backdropFilter: 'blur(16px)',
-      display:        'flex',
-      alignItems:     'center',
-      justifyContent: 'space-between',
-      padding:        '0 32px',
-    } as React.CSSProperties,
-
-    navLogo: {
-      display:    'flex',
-      alignItems: 'center',
-      gap:        '10px',
-    } as React.CSSProperties,
-
-    navLogoIcon: {
-      width:          '32px',
-      height:         '32px',
-      background:     TOKEN.red,
-      borderRadius:   '6px',
-      display:        'flex',
-      alignItems:     'center',
-      justifyContent: 'center',
-      boxShadow:      `0 0 15px ${TOKEN.red}`,
-      flexShrink:     0,
-    } as React.CSSProperties,
-
-    navLogoText: {
-      fontFamily:    'var(--font-head)',
-      fontSize:      '20px',
-      fontWeight:    900,
-      fontStyle:     'italic',
-      textTransform: 'uppercase' as const,
-      letterSpacing: '-0.03em',
-    } as React.CSSProperties,
-
-    navActions: {
-      display:    'flex',
-      alignItems: 'center',
-      gap:        '12px',
-    } as React.CSSProperties,
-
-    btnPrimary: {
-      display:       'flex',
-      alignItems:    'center',
-      gap:           '8px',
-      background:    TOKEN.red,
-      color:         TOKEN.white,
-      border:        'none',
-      padding:       '8px 16px',
-      borderRadius:  '6px',
-      fontSize:      '10px',
-      fontWeight:    800,
-      textTransform: 'uppercase' as const,
-      letterSpacing: '0.12em',
-      cursor:        'pointer',
-      boxShadow:     `0 0 15px ${TOKEN.redGlow}`,
-      transition:    'background 0.2s, opacity 0.2s',
-    } as React.CSSProperties,
-
-    btnGhost: {
-      background: 'transparent',
-      border:     'none',
-      color:      TOKEN.muted,
-      padding:    '8px',
-      cursor:     'pointer',
-      transition: 'color 0.2s',
-      display:    'flex',
-    } as React.CSSProperties,
-
-    avatar: {
-      width:        '40px',
-      height:       '40px',
-      borderRadius: '50%',
-      border:       `1px solid rgba(255,23,68,0.50)`,
-      background:   '#1f2937',
-      overflow:     'hidden',
-    } as React.CSSProperties,
-
-    // Main content
+    // Main content (adjusted - no built-in nav)
     main: {
-      maxWidth: '900px',
-      margin:   '72px auto 0 auto',
-      padding:  '48px 24px',
+      maxWidth: '1200px',
+      margin:   '0 auto',
+      padding:  '48px 24px 96px 24px',
       position: 'relative' as const,
     } as React.CSSProperties,
 
@@ -491,8 +423,12 @@ export default function Leaderboard({ roomCode, playerId, isRound2Game = false }
     } as React.CSSProperties,
 
     scoreCol: {
-      textAlign:  'right' as const,
-      flexShrink: 0,
+      display:     'flex' as const,
+      flexDirection: 'column' as const,
+      alignItems:  'flex-end',
+      textAlign:   'right' as const,
+      flexShrink:  0,
+      justifyContent: 'center',
     } as React.CSSProperties,
 
     scoreValue: (hovered: boolean): React.CSSProperties => ({
@@ -770,77 +706,9 @@ export default function Leaderboard({ roomCode, playerId, isRound2Game = false }
 
       <div style={S.page}>
 
-        {/* ── Navbar ───────────────────────────────────────────────────────── */}
-        <nav style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-          padding: '0 40px', height: '72px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          borderBottom: '1px solid var(--border)',
-          background: 'rgba(5,5,9,0.85)',
-          backdropFilter: 'blur(12px)',
-        }}>
-          {/* Logo */}
-          <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
-            <div style={{
-              width: '40px', height: '40px',
-              border: '2px solid var(--red)', borderRadius: '8px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(255,23,68,0.08)',
-            }}>
-              <Shield size={22} color="var(--red)" />
-            </div>
-            <span style={{ fontFamily: 'var(--font-head)', fontSize: '24px', letterSpacing: '3px', color: '#fff' }}>
-              SCAM<span style={{ color: 'var(--red)' }}>ESCAPE</span>
-            </span>
-          </a>
+        {/* ── Navbar is now handled by parent page component ─────────────────────────────────────────────────────── */}
 
-          {/* Nav Links */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '36px' }}>
-            {NAV_LINKS.map(link => (
-              <a
-                key={link.label}
-                href={link.href}
-                style={{
-                  color: 'var(--muted)', textDecoration: 'none',
-                  fontSize: '14px', fontWeight: 600,
-                  letterSpacing: '2px', textTransform: 'uppercase',
-                  transition: 'color 0.3s',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--muted)')}
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
-
-          {/* CTA Button */}
-          <button
-            onClick={startNewGame}
-            style={{
-              background: 'var(--red)', color: '#fff', border: 'none',
-              padding: '10px 24px', fontFamily: 'var(--font-body)',
-              fontSize: '13px', fontWeight: 700, letterSpacing: '2px',
-              textTransform: 'uppercase', cursor: 'pointer',
-              clipPath: 'polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)',
-              boxShadow: '0 0 20px rgba(255,23,68,0.3)',
-              transition: 'background 0.3s, box-shadow 0.3s',
-            }}
-            disabled={isSimulating}
-            onMouseEnter={e => { 
-              if (!isSimulating) {
-                (e.currentTarget as HTMLButtonElement).style.background = '#ff5577'
-              }
-            }}
-            onMouseLeave={e => { 
-              (e.currentTarget as HTMLButtonElement).style.background = 'var(--red)' 
-            }}
-          >
-            Play Now
-          </button>
-        </nav>
-
-        {/* ── Main ─────────────────────────────────────────────────────────── */}
+        {/* ── Main Content ─────────────────────────────────────────────────────── */}
         <main style={S.main}>
 
           {/* Header */}
@@ -1090,7 +958,7 @@ export default function Leaderboard({ roomCode, playerId, isRound2Game = false }
                       style={{ width: '100%', height: '100%' }}
                     />
                   </div>
-                  <div style={{ overflow: 'hidden' }}>
+                  <div style={{ overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                     <div style={S.codename}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {agent.codename}

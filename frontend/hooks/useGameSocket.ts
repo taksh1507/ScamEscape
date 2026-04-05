@@ -3,16 +3,16 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 
 export type GameEvent =
   | { event: 'game_start';    room_code: string; total_rounds: number }
-  | { event: 'start_round';   data: { type: string; round_number: number; duration: number; content: any; red_flags: string[] } }
-  | { event: 'timer_tick';    round_number: number; remaining: number }
-  | { event: 'round_result';  round_number: number; correct_action: string; red_flags: string[]; results: RoundResultEntry[] }
+  | { event: 'start_round';   data: { type: string; round_number: number; duration: number; content: any; red_flags: string[]; ttl?: number } }
+  | { event: 'timer_tick';    round_number: number; remaining: number; ttl?: number }
+  | { event: 'round_result';  round_number: number; correct_action: string; red_flags: string[]; results: RoundResultEntry[]; ttl?: number }
   | { event: 'round2_ready';  round_number: number; difficulty: string; scammer?: any }
   | { event: 'game_over';     leaderboard: LeaderboardEntry[] }
   | { event: 'player_joined'; player_id: string; nickname: string }
   | { event: 'player_left';   player_id: string; nickname: string }
   | { event: 'action_received'; action: string }
   | { event: 'decision_result';  data: { selected_option: string; risk_level: string; grade: string; explanation: string; better_action: string } }
-  | { event: 'call_update';    player_id: string; data: { phase: string; message: string; suggested_actions: any[] } }
+  | { event: 'call_update';    player_id: string; data: { phase: string; message: string; suggested_actions: any[]; ttl?: number } }
   | { event: 'round_end';      round_number: number }
   | { event: 'error';         message: string }
   | { event: 'pong' }
@@ -25,6 +25,7 @@ export interface RoundResultEntry {
   grade_letter: string
   grade_label: string
   grade_color: string
+  tip: string
   total_score: number
 }
 
@@ -81,7 +82,8 @@ export function useGameSocket(
     send({ type: 'submit_action', action })
   }, [send])
 
-  const sendUserAction = useCallback((action: string) => {
+  const sendUserAction = useCallback((action: string | Record<string, any>) => {
+    // Send full option object (with risk_level, explanation, etc.) or just string
     send({ type: 'user_action', action })
   }, [send])
 

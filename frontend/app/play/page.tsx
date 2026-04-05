@@ -18,7 +18,6 @@ const T = {
 
 const MODES = [
   { id: 'call', icon: Phone, label: 'Voice Intel', desc: 'Real-time Vishing', detail: 'Detect high-pressure tactics in live neural-synthesized scam calls.', color: T.red },
-  { id: 'chat', icon: MessageSquare, label: 'Text Protocol', desc: 'Smishing Fraud', detail: 'Inspect deceptive texts, WhatsApp forwarding schemes, and shortened URLs.', color: T.cyan },
   { id: 'email', icon: MailWarning, label: 'Email Defense', desc: 'Phishing Payload', detail: 'Scrutinize email headers, fake corporate domains, and malicious attachments.', color: T.green }
 ]
 

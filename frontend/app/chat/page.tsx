@@ -101,3 +101,13 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
+// Default page export (legacy page - not used)
+export default function ChatPage() {
+  return (
+    <div style={{ padding: '20px', color: '#fff' }}>
+      <h1>Chat API</h1>
+      <p>This is a legacy API route. Use the app normally.</p>
+    </div>
+  )
+}

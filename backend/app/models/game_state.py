@@ -19,5 +19,12 @@ class GameState:
     round_actions: Dict[str, str] = field(default_factory=dict)
     round_action_times: Dict[str, float] = field(default_factory=dict)
     
+    # 🔥 NEW: Separate tracking for different action types to avoid blocking
+    submit_actions: Dict[str, str] = field(default_factory=dict)    # submit_action (call accept/decline)
+    user_actions: Dict[str, str] = field(default_factory=dict)      # user_action (decision button clicks)
+    
+    # 🔥 NEW: Frontend-computed scores (submitted after call ends)
+    frontend_scores: Dict[str, Dict[str, Any]] = field(default_factory=dict)  # player_id -> {points, grade, analysis, tip}
+    
     # Adaptive Call Round State (for each player)
     call_states: Dict[str, CallState] = field(default_factory=dict) # player_id -> CallState
