@@ -1,14 +1,32 @@
-# 🛡️ ScamEscape - AI-Powered Fraud Prevention Training Platform
+# 🛡️ ScamEscape - Learn to Spot Scams
 
-> **Learn to spot and escape real scams through immersive AI-powered simulations**
+**A game that teaches you how to recognize and escape real scams using AI.**
 
-![Status](https://img.shields.io/badge/status-active-success)
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Python](https://img.shields.io/badge/Python-3.13+-blue?logo=python)
-![Node.js](https://img.shields.io/badge/Node.js-18+-green?logo=node.js)
-![Next.js](https://img.shields.io/badge/Next.js-16.2-black?logo=next.js)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green?logo=fastapi)
+![Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.0.0-blue?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.13%2B-blue?logo=python&style=flat-square)
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-green?logo=node.js&style=flat-square)
+![Next.js](https://img.shields.io/badge/Next.js-16.2-black?logo=next.js&style=flat-square)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green?logo=fastapi&style=flat-square)
+![Groq API](https://img.shields.io/badge/Groq-LLaMA%203.3-orange?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+
+---
+
+## 📋 Table of Contents
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Technology Stack](#technology-stack)
+- [Quick Start Guide](#quick-start-guide)
+- [Development Workflow](#development-workflow)
+- [API Documentation](#api-documentation)
+- [Game Flow & Mechanics](#game-flow--mechanics)
+- [Environment Variables](#environment-variables)
+- [Contributing](#contributing)
+- [Troubleshooting](#troubleshooting)
+- [License & Contact](#license--contact)
+
+---
 
 ## 📋 Overview
 
@@ -33,6 +51,8 @@ Combat fraud through immersive, AI-driven education. Turning scam victims into s
 - **Psychological Insights** through behavior detection and vulnerability scoring
 - **Scalable Architecture** ready for deployment on cloud platforms
 
+---
+
 ## ✨ Key Features
 
 ### 🎮 Round 1: Phone Call Simulation
@@ -48,35 +68,26 @@ Combat fraud through immersive, AI-driven education. Turning scam victims into s
 - **⏱️ Time Pressure Mechanics** - Countdown timer mirrors real scam urgency
 - **⚠️ Red Flag System** - Contextual warnings for suspicious patterns
 - **💪 Power-Up Helpers** - Strategic assistance to improve survival odds
-- **🎯 Multi-Choice Decisions** - Ask Questions → Request Verification → Ignore/Block → Share (LOSE)
+- **🎯 Multi-Choice Decisions** - Ask Questions → Request Verification → Ignore/Block → Share
 
 ### 💬 Round 2: WhatsApp Chat Simulation
 - **🤖 Two-Way AI Conversations** - Player messages trigger dynamic AI responses
-- **🎯 Adaptive Strategy** - AI adjusts tactics based on player feedback and previous decisions
-- **📱 Authentic UI** - Real WhatsApp messaging experience and design
-- **🏆 Live Scoring System** - Score updates in real-time as game progresses
-- **📈 Action Analytics** - Track every decision and its outcome
-- **🧠 Behavior Adaptation** - AI learns player patterns and increases sophistication
-- **⏱️ Message Timer** - Time limit between rounds adds realism and pressure
+- **🎯 Adaptive Strategy** - AI adjusts tactics based on player feedback
+- **📱 Authentic UI** - Real WhatsApp messaging experience
+- **🏆 Live Scoring** - Real-time score updates
+- **📈 Action Analytics** - Track every decision and outcome
+- **🧠 Behavior Adaptation** - AI learns and increases sophistication
+- **📋 Report Scam** - Players can detect and report scams
+- **✅ Game Finished Screen** - Completion achievements with redirect to home
 
 ### 🧠 Game Intelligence System
-- **Behavioral Profiling**
-  - Tracks suspicious vs. trusting decision patterns
-  - Identifies vulnerability to specific scam tactics
-  - Measures panic/stress responses under pressure
-- **Psychological Vulnerability Scoring**
-  - Rates susceptibility to FOMO (Fear of Missing Out)
-  - Evaluates urgency/pressure resistance
-  - Assesses empathy-based manipulation vulnerability
-- **Difficulty Scaling**
-  - Easy: Obvious red flags, beginner-friendly
-  - Medium: Mixed real and suspicious elements
-  - Hard: Highly realistic, professional-grade scams
-  - Adaptive: System recommends difficulty based on performance
-- **Learning Curve Adaptation**
-  - AI becomes harder as player skill improves
-  - New scammer types introduced based on mastery
-  - Personalized educational recommendations
+- **Behavioral Profiling** - Tracks decision patterns and vulnerability
+- **Psychological Vulnerability Scoring** - FOMO, urgency resistance, empathy evaluation
+- **Difficulty Scaling** - Easy/Medium/Hard/Adaptive modes
+- **Learning Curve Adaptation** - AI becomes harder as player improves
+- **Personalized Recommendations** - Educational guidance based on performance
+
+---
 
 ## 🛠️ Technology Stack
 
@@ -95,19 +106,19 @@ Combat fraud through immersive, AI-driven education. Turning scam victims into s
 ### Frontend Stack
 | Component | Technology | Version | Purpose |
 |-----------|-----------|---------|---------|
-| **Framework** | Next.js | 16.2.2 | React meta-framework with SSR |
-| **Runtime** | React | 19.2.4 | Component-based UI library |
-| **Language** | TypeScript | 5.x | Type-safe JavaScript |
-| **Styling** | Tailwind CSS | 4.x | Utility-first CSS framework |
-| **Real-time** | WebSocket (Native) | ES6+ | Client-side event streaming |
+| **Framework** | Next.js | 16.2.2+ | React meta-framework with SSR |
+| **Runtime** | React | 19.2.4+ | Component-based UI library |
+| **Language** | TypeScript | 5.x+ | Type-safe JavaScript |
+| **Styling** | Tailwind CSS | 4.x+ | Utility-first CSS framework |
+| **Animations** | Framer Motion | Latest | Smooth UI transitions |
+| **Real-time** | WebSocket | ES6+ | Client-side event streaming |
 | **State Management** | React Hooks | Native | useContext, useState, useEffect |
-| **Icons** | Lucide React | 1.7.0 | Modern SVG icon library |
-| **Utilities** | clsx, tailwind-merge | Latest | CSS classname utilities |
+| **Icons** | Lucide React | 1.7.0+ | Modern SVG icon library |
 
 ### Infrastructure & Deployment
 - **Containerization**: Docker (ready for deployment)
-- **Cloud**: Deployable on Vercel (Frontend), Railway/Render (Backend)
-- **Environment**: OS-agnostic (Windows, macOS, Linux support)
+- **Cloud**: Vercel (Frontend), Railway/Render (Backend)
+- **Environment**: OS-agnostic (Windows, macOS, Linux)
 - **Package Managers**: pip (Python), npm/yarn (Node.js)
 
 ## 🚀 Quick Start Guide
