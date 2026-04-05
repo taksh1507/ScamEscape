@@ -365,6 +365,8 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
   const [roundScore, setRoundScore] = useState(0)  // 🔥 Score for Round 1
   const [userResponseCount, setUserResponseCount] = useState(0)  // 🔥 Count how many times user clicked options
   const [showResultsModal, setShowResultsModal] = useState(false)  // 🔥 Show results modal after round
+  const [showCongratulations, setShowCongratulations] = useState(false)  // 🎉 Show celebratory congratulations modal first
+  const [showLoadingTransition, setShowLoadingTransition] = useState(false)  // ⏳ Show loading between congratulations and results
   const [showPersonalMsg, setShowPersonalMsg] = useState(false)  // 👤 Personal message popup
   const [personalMsgAction, setPersonalMsgAction] = useState<'end' | 'continue' | null>(null)  // 👤 Which action triggered it
   const transcriptEndRef = useRef<HTMLDivElement>(null)
@@ -436,8 +438,8 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
   // 🔴 Generate random score for Round 1 (Call Simulation)
   const generateRound1Score = (phase: 'success' | 'failure') => {
     if (phase === 'success') {
-      // ✅ User detected the scam successfully = 60-100 (higher rewards for smart detection)
-      return Math.floor(Math.random() * 41) + 60
+      // ✅ User detected the scam successfully = 70-100 (higher rewards for smart detection)
+      return Math.floor(Math.random() * 31) + 70
     } else {
       // ❌ User got scammed = 1-50 (lower score for failure)
       return Math.floor(Math.random() * 50) + 1
@@ -678,6 +680,8 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                   || optionText.toLowerCase().includes('block')
                   || optionText.toLowerCase().includes('disconnect');
     
+    console.log(`📞 CHECKING OPTION: "${optionText}" | Hang-up: ${isHangUp}`)
+    
     if (isHangUp) {
       // ✅ HANG UP AT ANY TIME = SUCCESS: User escaped without falling for the scam
       console.log('✅ HANG-UP AT ANY TIME: User escaped the scam! Marking as success...')
@@ -685,25 +689,43 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
       cancelTTS()
       stopRing()
       setCallState('waiting_for_results')
-      setShowResultsModal(true)
+      setShowCongratulations(true)  // 🎉 Show celebratory modal first
       return
     }
     
     // 🔥 SCAMMED OPTIONS: If user clicks options that indicate they fell for the scam
-    const isScammedOption = optionText.toLowerCase().includes('provide card')
-                         || optionText.toLowerCase().includes('give card')
-                         || optionText.toLowerCase().includes('give bank')
-                         || optionText.toLowerCase().includes('share bank')
-                         || optionText.toLowerCase().includes('share cvv')
-                         || optionText.toLowerCase().includes('send money')
-                         || optionText.toLowerCase().includes('confirm payment')
-                         || optionText.toLowerCase().includes('proceed payment')
-                         || optionText.toLowerCase().includes('authorize transfer')
-                         || optionText.toLowerCase().includes('otp');
+    const optLower = optionText.toLowerCase();
+    const isScammedOption = optLower.includes('provide card')
+                         || optLower.includes('give card')
+                         || optLower.includes('give bank')
+                         || optLower.includes('share bank')
+                         || optLower.includes('share cvv')
+                         || optLower.includes('send money')
+                         || optLower.includes('confirm payment')
+                         || optLower.includes('proceed payment')
+                         || optLower.includes('authorize transfer')
+                         || optLower.includes('otp')
+                         || optLower.includes('card number')
+                         || optLower.includes('bank account')
+                         || optLower.includes('account number')
+                         || optLower.includes('confirm details')
+                         || optLower.includes('verify identity')
+                         || optLower.includes('verify account')
+                         || optLower.includes('complete transaction')
+                         || optLower.includes('authorize')
+                         || optLower.includes('confirm')
+                         || optLower.includes('yes, proceed')
+                         || optLower.includes('yes i will')
+                         || optLower.includes('i agree')
+                         || optLower.includes('send cvv')
+                         || optLower.includes('send otp')
+                         || optLower.includes('transfer funds')
+                         || optLower.includes('make payment');
     
     if (isScammedOption) {
       // ❌ USER FELL FOR THE SCAM - they provided sensitive info
       console.log('❌ USER PROVIDED SENSITIVE INFO - MARKING AS SCAMMED...')
+      console.log('🔍 Option text matched:', optionText)
       setScamPhase('failure')  // User got scammed
       cancelTTS()
       stopRing()
@@ -1080,34 +1102,178 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                 </p>
               </div>
 
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '32px' }}>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginBottom: '16px', letterSpacing: '1px' }}>INITIATING ROUND 2</div>
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '40px', marginTop: '40px' }}>
+                {/* Round Transmission Header */}
+                <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                  <div style={{
+                    display: 'inline-block',
+                    padding: '8px 24px',
+                    background: 'linear-gradient(135deg, #00e5ff, #0099ff)',
+                    color: '#000',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    letterSpacing: '3px',
+                    borderRadius: '50px',
+                    marginBottom: '24px'
+                  }}>
+                    ROUND 1 COMPLETE
+                  </div>
+                  <h2 style={{ 
+                    fontSize: '36px', 
+                    color: '#00e5ff', 
+                    margin: '0 0 16px 0',
+                    fontWeight: 700,
+                    letterSpacing: '2px'
+                  }}>
+                    TRANSMISSION IN PROGRESS
+                  </h2>
+                  <p style={{ 
+                    color: 'rgba(255,255,255,0.6)', 
+                    fontSize: '16px', 
+                    margin: 0,
+                    lineHeight: '1.6'
+                  }}>
+                    Initializing Round 2: WhatsApp Scam Detection
+                  </p>
+                </div>
+
+                {/* Enhanced Loading Animation */}
                 <div style={{
-                  background: 'rgba(0,230,255,0.1)',
-                  border: '1px solid rgba(0,230,255,0.3)',
-                  padding: '20px 24px',
-                  borderRadius: '4px',
+                  background: 'linear-gradient(135deg, rgba(0,229,255,0.08), rgba(0,153,255,0.05))',
+                  border: '2px solid rgba(0,229,255,0.3)',
+                  borderRadius: '16px',
+                  padding: '48px 32px',
                   textAlign: 'center',
-                  marginBottom: '16px'
+                  marginBottom: '32px',
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}>
-                  <div style={{ marginBottom: '12px' }}>
+                  {/* Animated background gradient */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'linear-gradient(90deg, transparent, rgba(0,229,255,0.1), transparent)',
+                    animation: 'slideGradient 2s infinite'
+                  }} />
+
+                  {/* Loading spinner container - SINGLE CIRCLE */}
+                  <div style={{ marginBottom: '28px', position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '120px' }}>
+                    {/* Background glow effect */}
                     <div style={{
-                      width: '40px',
-                      height: '40px',
-                      border: '3px solid rgba(0,230,255,0.3)',
-                      borderTop: '3px solid #00e5ff',
+                      position: 'absolute',
+                      width: '100px',
+                      height: '100px',
+                      background: 'radial-gradient(circle, rgba(0,229,255,0.3), transparent)',
                       borderRadius: '50%',
-                      margin: '0 auto',
-                      animation: 'spin 1s linear infinite'
+                      animation: 'pulse 2s ease-in-out infinite',
+                      filter: 'blur(15px)'
+                    }} />
+                    
+                    {/* Single rotating circle */}
+                    <div style={{
+                      position: 'relative',
+                      width: '80px',
+                      height: '80px',
+                      border: '4px solid rgba(0,229,255,0.2)',
+                      borderTop: '4px solid #00e5ff',
+                      borderRadius: '50%',
+                      animation: 'spin 2s linear infinite'
                     }} />
                   </div>
-                  <p style={{ color: '#00e5ff', fontSize: '14px', margin: 0 }}>Preparing WhatsApp Simulation...</p>
-                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', margin: '8px 0 0 0' }}>This may take a few seconds</p>
+
+                  {/* Status text */}
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <p style={{ 
+                      color: '#00e5ff', 
+                      fontSize: '16px', 
+                      fontWeight: 600,
+                      margin: '0 0 8px 0',
+                      letterSpacing: '1px'
+                    }}>
+                      🔄 Loading Round 2...
+                    </p>
+                    <p style={{ 
+                      color: 'rgba(255,255,255,0.5)', 
+                      fontSize: '13px', 
+                      margin: 0,
+                      letterSpacing: '0.5px'
+                    }}>
+                      Preparing WhatsApp fraud simulation
+                    </p>
+                  </div>
                 </div>
+
+                {/* Progress steps */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '16px',
+                  marginBottom: '24px'
+                }}>
+                  <div style={{
+                    background: 'rgba(0,230,118,0.1)',
+                    border: '1px solid rgba(0,230,118,0.3)',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '20px', marginBottom: '8px' }}>✅</div>
+                    <div style={{ color: '#00ff88', fontSize: '12px', fontWeight: 700, letterSpacing: '0.5px' }}>
+                      CALL ANALYZED
+                    </div>
+                  </div>
+                  <div style={{
+                    background: 'rgba(0,229,255,0.1)',
+                    border: '2px solid rgba(0,229,255,0.4)',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    textAlign: 'center',
+                    animation: 'pulse 1.5s ease-in-out infinite'
+                  }}>
+                    <div style={{ fontSize: '20px', marginBottom: '8px', animation: 'bounce 1s ease-in-out infinite' }}>📱</div>
+                    <div style={{ color: '#00e5ff', fontSize: '12px', fontWeight: 700, letterSpacing: '0.5px' }}>
+                      CHAT LOADING
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preparation message */}
+                <div style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  textAlign: 'center'
+                }}>
+                  <p style={{ 
+                    color: 'rgba(255,255,255,0.7)', 
+                    fontSize: '12px', 
+                    margin: 0,
+                    lineHeight: '1.6'
+                  }}>
+                    💡 In Round 2, you'll receive WhatsApp messages from a scammer. Stay vigilant and detect the fraud!
+                  </p>
+                </div>
+
                 <style>{`
                   @keyframes spin {
                     0% { transform: rotate(0deg); }
                     100% { transform: rotate(360deg); }
+                  }
+                  @keyframes pulse {
+                    0%, 100% { transform: scale(1); opacity: 0.6; }
+                    50% { transform: scale(1.15); opacity: 1; }
+                  }
+                  @keyframes bounce {
+                    0%, 100% { transform: translateY(0); }
+                    50% { transform: translateY(-8px); }
+                  }
+                  @keyframes slideGradient {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(100%); }
                   }
                 `}</style>
               </div>
@@ -1122,6 +1288,154 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
           </div>
         )}
       </div>
+
+      {/* 🎉 CONGRATULATIONS MODAL - Shows when you hang up */}
+      {showCongratulations && scamPhase === 'success' && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.98)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1100,
+          overflow: 'auto',
+          padding: '20px',
+          animation: 'fadeIn 0.3s ease-in'
+        }}>
+          <div style={{
+            textAlign: 'center',
+            maxWidth: '600px',
+            width: '100%',
+            padding: '50px 40px',
+            background: 'linear-gradient(135deg, rgba(0,170,0,0.2) 0%, rgba(0,255,136,0.1) 100%)',
+            border: '2px solid #00ff88',
+            borderRadius: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '30px'
+          }}>
+            {/* Celebration Animation */}
+            <div style={{
+              fontSize: '80px',
+              animation: 'bounce 0.8s ease-in-out infinite'
+            }}>
+              🎉
+            </div>
+
+            {/* Title */}
+            <div style={{
+              fontSize: '36px',
+              fontWeight: 800,
+              color: '#00ff88',
+              letterSpacing: '3px',
+              textTransform: 'uppercase'
+            }}>
+              YOU ESCAPED!
+            </div>
+
+            {/* Subtitle */}
+            <div style={{
+              fontSize: '16px',
+              color: 'rgba(255,255,255,0.8)',
+              lineHeight: '1.6'
+            }}>
+              You successfully identified the scam and hung up at the right time. Smart move!
+            </div>
+
+            {/* Score Display */}
+            {roundScore > 0 && (
+              <div style={{
+                fontSize: '64px',
+                fontWeight: 800,
+                color: '#00ff88',
+                fontFamily: 'monospace',
+                marginBottom: '12px'
+              }}>
+                {roundScore}
+                <span style={{ fontSize: '24px', color: 'rgba(255,255,255,0.6)', marginLeft: '8px' }}>/ 100</span>
+              </div>
+            )}
+
+            {/* Achievement Badges */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px',
+              width: '100%',
+              marginTop: '20px'
+            }}>
+              <div style={{
+                background: 'rgba(0,255,136,0.1)',
+                border: '1px solid #00ff88',
+                borderRadius: '8px',
+                padding: '16px',
+                fontSize: '13px',
+                color: '#00ff88',
+                fontWeight: 700,
+                letterSpacing: '1px'
+              }}>
+                ✅ AWARENESS CHECK
+              </div>
+              <div style={{
+                background: 'rgba(0,255,136,0.1)',
+                border: '1px solid #00ff88',
+                borderRadius: '8px',
+                padding: '16px',
+                fontSize: '13px',
+                color: '#00ff88',
+                fontWeight: 700,
+                letterSpacing: '1px'
+              }}>
+                ✅ QUICK RESPONSE
+              </div>
+            </div>
+
+            {/* Continue Button */}
+            <button
+              onClick={() => {
+                setShowCongratulations(false)
+                // Generate score since we're moving to results now
+                if (roundScore === 0) {
+                  const score = Math.floor(Math.random() * 31) + 70
+                  setRoundScore(score)
+                }
+                setShowResultsModal(true)
+              }}
+              style={{
+                background: 'linear-gradient(to right, #00ff88, #00ffaa)',
+                color: '#000',
+                padding: '16px 48px',
+                fontSize: '14px',
+                fontWeight: 700,
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                letterSpacing: '2px',
+                textTransform: 'uppercase',
+                transition: 'transform 0.2s',
+                marginTop: '20px'
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              VIEW DETAILS & CONTINUE
+            </button>
+          </div>
+
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes bounce {
+              0%, 100% { transform: translateY(0); }
+              50% { transform: translateY(-20px); }
+            }
+          `}</style>
+        </div>
+      )}
 
       {/* Results Modal - Shows after Round 1 ends */}
       {showResultsModal && (

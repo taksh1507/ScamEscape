@@ -63,8 +63,8 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
   // 🔴 Generate random score with different ranges based on result
   const generateRandomScore = (result?: string) => {
     if (result === 'detected') {
-      // Congratulation: avoided scam = 60-100
-      return Math.floor(Math.random() * 41) + 60
+      // Congratulation: avoided scam = 70-100
+      return Math.floor(Math.random() * 31) + 70
     } else {
       // Got scammed = 1-50
       return Math.floor(Math.random() * 50) + 1
@@ -143,6 +143,9 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
         if (data.scenario.messages?.length > 0) {
           setMessages([data.scenario.messages[0]])
         }
+        
+        // Show loading screen for at least 2.5 seconds for smooth transition
+        await new Promise(resolve => setTimeout(resolve, 2500))
         setGamePhase('chat')
         setIsLoading(false)
         setLoadError(null)
@@ -427,14 +430,183 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
 
   if (isLoading) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+      <div style={{ minHeight: '100vh', background: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} style={{ textAlign: 'center', maxWidth: '500px', width: '100%' }}>
+          {/* Round 2 Header */}
+          <div style={{ marginBottom: '40px' }}>
+            <div style={{
+              display: 'inline-block',
+              padding: '8px 24px',
+              background: 'linear-gradient(135deg, #00e5ff, #0099ff)',
+              color: '#000',
+              fontSize: '11px',
+              fontWeight: 800,
+              letterSpacing: '3px',
+              borderRadius: '50px',
+              marginBottom: '20px'
+            }}>
+              ROUND 2 INITIALIZING
+            </div>
+            <h1 style={{
+              fontSize: '32px',
+              fontFamily: 'var(--font-head)',
+              fontWeight: 'bold',
+              background: 'linear-gradient(to right, #00e5ff, var(--cyan))',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              marginBottom: '12px'
+            }}>
+              WhatsApp Scam Detection
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '14px', margin: 0 }}>
+              Prepare yourself for the next challenge
+            </p>
+          </div>
+
+          {/* Enhanced Loading Container */}
           <div style={{
-            width: '64px', height: '64px', border: '4px solid rgba(255, 23, 68, 0.3)',
-            borderTop: '4px solid var(--red)', borderRadius: '50%', animation: 'spin 1s linear infinite',
-            marginBottom: '16px'
-          }}></div>
-          <p style={{ color: 'var(--text)', fontFamily: 'var(--font-body)', fontWeight: 600, textAlign: 'center' }}>Loading...</p>
+            background: 'linear-gradient(135deg, rgba(0,229,255,0.08), rgba(0,153,255,0.05))',
+            border: '2px solid rgba(0,229,255,0.3)',
+            borderRadius: '16px',
+            padding: '48px 32px',
+            marginBottom: '32px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Animated background */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'linear-gradient(90deg, transparent, rgba(0,229,255,0.1), transparent)',
+              animation: 'slideGradient 2s infinite'
+            }} />
+
+            {/* Loading spinner - SINGLE CIRCLE */}
+            <div style={{ marginBottom: '24px', position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '120px' }}>
+              {/* Background glow effect */}
+              <div style={{
+                position: 'absolute',
+                width: '100px',
+                height: '100px',
+                background: 'radial-gradient(circle, rgba(0,229,255,0.3), transparent)',
+                borderRadius: '50%',
+                animation: 'pulse 2s ease-in-out infinite',
+                filter: 'blur(15px)'
+              }} />
+              
+              {/* Single rotating circle */}
+              <div style={{
+                position: 'relative',
+                width: '80px',
+                height: '80px',
+                border: '4px solid rgba(0,229,255,0.2)',
+                borderTop: '4px solid #00e5ff',
+                borderRadius: '50%',
+                animation: 'spin 2s linear infinite'
+              }} />
+            </div>
+
+            {/* Loading text */}
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <p style={{
+                color: '#00e5ff',
+                fontSize: '16px',
+                fontWeight: 600,
+                margin: '0 0 8px 0',
+                letterSpacing: '1px'
+              }}>
+                📱 Setting up chat environment...
+              </p>
+              <p style={{
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: '13px',
+                margin: 0,
+                letterSpacing: '0.5px'
+              }}>
+                This may take a moment
+              </p>
+            </div>
+          </div>
+
+          {/* Progress indicators */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr',
+            gap: '12px',
+            marginBottom: '24px'
+          }}>
+            <div style={{
+              background: 'rgba(0,230,118,0.1)',
+              border: '1px solid rgba(0,230,118,0.3)',
+              borderRadius: '8px',
+              padding: '12px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '16px', marginBottom: '6px' }}>✅</div>
+              <div style={{ color: '#00ff88', fontSize: '11px', fontWeight: 700 }}>Round 1</div>
+            </div>
+            <div style={{
+              background: 'rgba(255,152,0,0.1)',
+              border: '1px solid rgba(255,152,0,0.3)',
+              borderRadius: '8px',
+              padding: '12px',
+              textAlign: 'center',
+              animation: 'pulse 1s ease-in-out infinite'
+            }}>
+              <div style={{ fontSize: '16px', marginBottom: '6px', animation: 'bounce 1s ease-in-out infinite' }}>⚡</div>
+              <div style={{ color: '#ffb300', fontSize: '11px', fontWeight: 700 }}>Loading</div>
+            </div>
+            <div style={{
+              background: 'rgba(0,229,255,0.1)',
+              border: '1px solid rgba(0,229,255,0.3)',
+              borderRadius: '8px',
+              padding: '12px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '16px', marginBottom: '6px' }}>⏳</div>
+              <div style={{ color: '#00e5ff', fontSize: '11px', fontWeight: 700 }}>Round 2</div>
+            </div>
+          </div>
+
+          {/* Tips box */}
+          <div style={{
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
+            <p style={{
+              color: 'rgba(255,255,255,0.7)',
+              fontSize: '12px',
+              margin: 0,
+              lineHeight: '1.6'
+            }}>
+              💡 <strong>Tip:</strong> In this round, read the WhatsApp chat carefully and decide whether to report, block, or pay the scammer.
+            </p>
+          </div>
+
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            @keyframes pulse {
+              0%, 100% { transform: scale(1); opacity: 0.6; }
+              50% { transform: scale(1.15); opacity: 1; }
+            }
+            @keyframes bounce {
+              0%, 100% { transform: translateY(0); }
+              50% { transform: translateY(-6px); }
+            }
+            @keyframes slideGradient {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(100%); }
+            }
+          `}</style>
         </motion.div>
       </div>
     )
@@ -1341,8 +1513,8 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
                     if (submitAction) submitAction('detected_scam')
                     setGamePhase('game_finished')
                     setTimeout(() => {
-                      console.log('🔄 Redirecting to main page after report with game_finished status...')
-                      window.location.href = '/?status=game_finished'
+                      console.log('🔄 Redirecting to home...')
+                      router.push('/')
                     }, 2000)
                   }}
                   style={{
@@ -1520,7 +1692,7 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => window.location.href = `/play?room=${roomCode}`}
+            onClick={() => router.push('/')}
             style={{
               background: 'linear-gradient(to right, var(--cyan), #0099ff)',
               color: 'white',
@@ -1534,7 +1706,7 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
               boxShadow: '0 0 20px rgba(0, 229, 255, 0.4)'
             }}
           >
-            Next Round
+            Back to Home
           </motion.button>
         </motion.div>
       </div>
@@ -1599,7 +1771,7 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => window.location.href = '/'}
+            onClick={() => router.push('/')}
             style={{
               background: 'linear-gradient(to right, #00e676, #00ff88)',
               color: '#000',
@@ -1700,6 +1872,7 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
                 console.log('✅ SCAMMED BUTTON CLICKED')
                 if (submitAction) submitAction('fell_for_scam')
                 setScore(randomScore)
+                setTimeout(() => router.push('/'), 500)
               }}
               style={{
                 width: '100%',
@@ -1888,6 +2061,7 @@ export default function ChatSimulation({ roomCode, playerId }: { roomCode: strin
                 console.log('✅ DETECTED BUTTON CLICKED')
                 if (submitAction) submitAction('detected_scam')
                 setScore(randomScore)
+                setTimeout(() => router.push('/'), 500)
               }}
               style={{
                 width: '100%',
