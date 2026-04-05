@@ -231,9 +231,8 @@ ScamEscape/
 
 - ✅ 🔒 No personal data stored
 - ✅ 🚫 No account creation required
-- ✅ 📴 Offline mode available
 - ✅ 📂 Open source code
-- ✅ 🛡️ GDPR compliant
+
 
 ---
 
