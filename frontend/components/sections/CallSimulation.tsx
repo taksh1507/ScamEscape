@@ -357,11 +357,15 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
   const [results, setResults] = useState<any>(null)
   const [totalRounds, setTotalRounds] = useState(1)
   const [currentRound, setCurrentRound] = useState(0)
-  const [isSubmitting, setIsSubmitting] = useState(false)  // 🔥 Prevent double-submit
+  // 🔥 Removed isSubmitting - all options always enabled
   const [ringtoneActive, setRingtoneActive] = useState(false)  // 🔥 Track ringtone status
   const [clockSkew, setClockSkew] = useState(0)  // 🔥 Track clock difference between client and server
   const [scamPhase, setScamPhase] = useState<'success' | 'failure' | null>(null)  // 🔥 Track if user was scammed
   const [showResultsModal, setShowResultsModal] = useState(false)  // 🔥 Show results modal after round
+  const [showPaymentPopup, setShowPaymentPopup] = useState(false)  // 💰 Payment detection popup
+  const [paymentDetected, setPaymentDetected] = useState(false)  // 💰 Payment detected flag
+  const [showPersonalMsg, setShowPersonalMsg] = useState(false)  // 👤 Personal message popup
+  const [personalMsgAction, setPersonalMsgAction] = useState<'end' | 'continue' | null>(null)  // 👤 Which action triggered it
   const transcriptEndRef = useRef<HTMLDivElement>(null)
   const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null)  // 🔥 Safety timeout ref
   const conversationLogRef = useRef<{role: 'scammer'|'user', text: string, risk_level?: string}[]>([])  // 🔥 Buffer all exchanges
@@ -520,7 +524,6 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
           clearTimeout(safetyTimeoutRef.current)
           safetyTimeoutRef.current = null
         }
-        setIsSubmitting(false)   // 🔥 Re-enable buttons for next action
 
         // Speak the message (options already shown above)
         if (callState === 'connected' || callState === 'decision') {
@@ -625,10 +628,6 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     e.preventDefault()
     e.stopPropagation()
     
-    // 🔥 Prevent double-submit
-    if (isSubmitting) return
-    setIsSubmitting(true)
-    
     const optionText = typeof option === 'string' ? option : option.option;
     console.log('✏️ User selected option:', optionText)
     
@@ -680,7 +679,6 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
         
         // Keep conversation going instead of ending
         setCallState('connected')
-        setIsSubmitting(false)
         return
       } else {
         // ❌ LATE HANG-UP: They got too engaged, will be marked as scammed
@@ -704,14 +702,14 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current)
     safetyTimeoutRef.current = setTimeout(() => {
       console.warn('⚠️ No response from backend after 15 seconds - forcing reset')
-      setIsSubmitting(false)
       alert('Server is not responding. Please refresh the page.')
     }, 15000)
-  }, [sendUserAction, stopRing, cancelTTS, isSubmitting, transcript, speakLine])
+  }, [sendUserAction, stopRing, cancelTTS, transcript, speakLine])
 
   const handleAccept = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    
     console.log('Call Accepted by user click')
     
     stopRing()
@@ -725,16 +723,19 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
       })
     }
     
+    // 🔥 Safety timeout: If no response after 15 seconds, assume backend issue
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current)
+    safetyTimeoutRef.current = setTimeout(() => {
+      console.warn('⚠️ No response from backend after 15 seconds - forcing reset')
+      alert('Server is not responding. Please refresh the page.')
+    }, 15000)
+    
     submitAction('accept')
   }, [stopRing, transcript, speakLine, submitAction])
 
   const handleDecline = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    
-    // 🔥 Prevent double-submit
-    if (isSubmitting) return
-    setIsSubmitting(true)
     
     console.log('Call Declined by user click')
     
@@ -743,7 +744,48 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
     // Don't set to 'declined' - wait for actual round_result from backend
     console.log('Sending hang_up action to backend, waiting for results...')
     submitAction('hang_up')
-  }, [stopRing, cancelTTS, submitAction, isSubmitting])
+  }, [stopRing, cancelTTS, submitAction])
+
+  // 💰 Detect Scam Handler
+  const handleDetectScam = useCallback(() => {
+    console.log('🚨 BUTTON CLICKED - Detect Scam pressed!')
+    setPaymentDetected(true)
+    setShowPaymentPopup(true)
+    console.log('💰 Payment popup should show now!')
+  }, [])
+
+  // 💰 End Game Handler - Shows personal message
+  const handleEndGame = useCallback(() => {
+    console.log('✅ END GAME PRESSED')
+    setPersonalMsgAction('end')
+    setShowPersonalMsg(true)
+  }, [])
+
+  // 👤 Confirm End Game - Finalize
+  const confirmEndGame = useCallback(() => {
+    console.log('✅ GAME OVER - Payment detection!')
+    setShowPersonalMsg(false)
+    setShowPaymentPopup(false)
+    setScamPhase('failure')
+    cancelTTS()
+    stopRing()
+    setCallState('waiting_for_results')
+    setShowResultsModal(true)
+  }, [cancelTTS, stopRing])
+
+  // ❌ Continue Handler - Shows personal message
+  const handleContinue = useCallback(() => {
+    console.log('✅ CONTINUE PRESSED')
+    setPersonalMsgAction('continue')
+    setShowPersonalMsg(true)
+  }, [])
+
+  // 👤 Confirm Continue - Keep Playing
+  const confirmContinue = useCallback(() => {
+    console.log('✅ CONTINUE CONFIRMED')
+    setShowPersonalMsg(false)
+    setShowPaymentPopup(false)
+  }, [])
 
   // --- Renders ---
 
@@ -812,10 +854,10 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
               width: '80px', height: '80px', borderRadius: '50%', background: '#ff1744', 
               border: 'none', cursor: 'pointer', fontSize: '36px', display: 'flex', 
               alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 30px rgba(255,23,68,0.4)',
-              transition: 'transform 0.2s', pointerEvents: 'all', zIndex: 300
+              transition: 'all 0.2s', zIndex: 300
             }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
+            onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
           >
             <span style={{ pointerEvents: 'none' }}>❌</span>
           </button>
@@ -827,10 +869,10 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
               width: '80px', height: '80px', borderRadius: '50%', background: '#00e676', 
               border: 'none', cursor: 'pointer', fontSize: '36px', display: 'flex', 
               alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 30px rgba(0,230,118,0.4)',
-              transition: 'transform 0.2s', pointerEvents: 'all', zIndex: 300
+              transition: 'all 0.2s', zIndex: 300
             }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
+            onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
           >
             <span style={{ pointerEvents: 'none' }}>✅</span>
           </button>
@@ -933,7 +975,6 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                           transition: 'all 0.2s',
                           textAlign: 'center',
                           letterSpacing: '0.5px',
-                          pointerEvents: 'all',
                           position: 'relative',
                           zIndex: 300,
                           minHeight: '50px',
@@ -960,6 +1001,42 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
                   });
                 })()}
               </div>
+              
+              {/* 💰 Detect Scam Button */}
+              {callState === 'decision' && (
+                <button
+                  onClick={() => {
+                    console.log('✅ DETECT SCAM BUTTON PRESSED!')
+                    setShowPaymentPopup(true)
+                  }}
+                  style={{
+                    marginTop: '24px',
+                    padding: '16px 32px',
+                    background: 'linear-gradient(135deg, #ff6b6b, #ff1744)',
+                    border: '2px solid rgba(255,23,68,0.5)',
+                    color: '#fff',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    borderRadius: '8px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '2px',
+                    transition: 'all 0.3s',
+                    textAlign: 'center',
+                    width: '100%'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #ff7b7b, #ff2444)'
+                    e.currentTarget.style.boxShadow = '0 0 20px rgba(255,23,68,0.6)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #ff6b6b, #ff1744)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                >
+                  🚨 Detect Scam
+                </button>
+              )}
             </div>
           ) : callState === 'waiting_for_results' ? (
             // Waiting for round_result after terminal action
@@ -1186,6 +1263,271 @@ export default function CallSimulation({ roomCode, playerId }: Props) {
             >
               CONTINUE TO ROUND 2
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 💰 Payment Detection Popup Modal */}
+      {showPaymentPopup && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          backdropFilter: 'blur(5px)',
+          animation: 'fadeSlideUp 0.3s ease-out'
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #1a1a1a 0%, #2a1a1a 100%)',
+            border: '3px solid #ff1744',
+            borderRadius: '12px',
+            padding: '48px 40px',
+            maxWidth: '500px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 0 40px rgba(255,23,68,0.5)',
+            position: 'relative'
+          }}>
+            {/* Alert Icon */}
+            <div style={{
+              fontSize: '80px',
+              marginBottom: '24px',
+              animation: 'pulse 1s infinite'
+            }}>
+              💳
+            </div>
+
+            {/* Heading */}
+            <h2 style={{
+              fontSize: '32px',
+              color: '#ff1744',
+              marginBottom: '16px',
+              fontWeight: 700,
+              letterSpacing: '2px',
+              textTransform: 'uppercase'
+            }}>
+              Payment Detected!
+            </h2>
+
+            {/* Description */}
+            <p style={{
+              fontSize: '16px',
+              color: 'rgba(255,255,255,0.8)',
+              marginBottom: '32px',
+              lineHeight: '1.6'
+            }}>
+              The scammer is trying to get your payment! This is a clear sign of a scam. You can either:
+            </p>
+
+            {/* Options */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* End Game Button */}
+              <button
+                onClick={handleEndGame}
+                style={{
+                  padding: '16px 32px',
+                  background: 'linear-gradient(135deg, #ff1744, #ff5577)',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '2px',
+                  transition: 'all 0.3s'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'scale(1.05)'
+                  e.currentTarget.style.boxShadow = '0 0 20px rgba(255,23,68,0.6)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'scale(1)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              >
+                🛑 End Game (You Lost)
+              </button>
+
+              {/* Continue Button */}
+              <button
+                onClick={handleContinue}
+                style={{
+                  padding: '16px 32px',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  color: '#fff',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '2px',
+                  transition: 'all 0.3s'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.7)'
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                }}
+              >
+                ❌ Continue Resisting
+              </button>
+            </div>
+
+            {/* Warning Message */}
+            <div style={{
+              marginTop: '24px',
+              padding: '16px',
+              background: 'rgba(255,23,68,0.1)',
+              borderLeft: '4px solid #ff1744',
+              borderRadius: '4px',
+              fontSize: '12px',
+              color: 'rgba(255,255,255,0.7)',
+              textAlign: 'left'
+            }}>
+              <strong>⚠️ Warning:</strong> Real scammers always try to get money. If you send payment, you lose!
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 👤 Personal Message Popup Modal */}
+      {showPersonalMsg && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(0,0,0,0.9)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          backdropFilter: 'blur(5px)',
+          animation: 'fadeSlideUp 0.3s ease-out'
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #0a1a2e 0%, #16213e 100%)',
+            border: '3px solid #00e676',
+            borderRadius: '12px',
+            padding: '48px 40px',
+            maxWidth: '500px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 0 40px rgba(0,230,118,0.5)',
+            position: 'relative'
+          }}>
+            {/* Icon */}
+            <div style={{
+              fontSize: '60px',
+              marginBottom: '24px'
+            }}>
+              {personalMsgAction === 'end' ? '🛑' : '❌'}
+            </div>
+
+            {/* Title */}
+            <h2 style={{
+              fontSize: '28px',
+              color: '#00e676',
+              marginBottom: '16px',
+              fontWeight: 700,
+              letterSpacing: '2px',
+              textTransform: 'uppercase'
+            }}>
+              {personalMsgAction === 'end' ? 'Game Over' : 'Confirm'}
+            </h2>
+
+            {/* Message */}
+            <p style={{
+              fontSize: '16px',
+              color: 'rgba(255,255,255,0.8)',
+              marginBottom: '32px',
+              lineHeight: '1.8',
+              fontStyle: 'italic'
+            }}>
+              {personalMsgAction === 'end' 
+                ? '"You gave your payment details to a scammer. Remember: legitimate companies never ask for payment over the phone. Stay safe!"'
+                : '"Keep questioning the caller. Look for red flags: urgency, threats, and requests for money. You\'re doing great!"'}
+            </p>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Confirm Button */}
+              <button
+                onClick={personalMsgAction === 'end' ? confirmEndGame : confirmContinue}
+                style={{
+                  padding: '14px 32px',
+                  background: personalMsgAction === 'end' 
+                    ? 'linear-gradient(135deg, #ff1744, #ff5577)' 
+                    : 'linear-gradient(135deg, #00e676, #00ff88)',
+                  border: 'none',
+                  color: personalMsgAction === 'end' ? '#fff' : '#000',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  transition: 'all 0.3s'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'scale(1.05)'
+                  e.currentTarget.style.boxShadow = personalMsgAction === 'end'
+                    ? '0 0 20px rgba(255,23,68,0.6)'
+                    : '0 0 20px rgba(0,230,118,0.6)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'scale(1)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              >
+                {personalMsgAction === 'end' ? '🛑 Accept Loss' : '✅ Continue Playing'}
+              </button>
+
+              {/* Cancel Button */}
+              <button
+                onClick={() => {
+                  setShowPersonalMsg(false)
+                  if (personalMsgAction === 'end') {
+                    setShowPaymentPopup(true)  // Go back to payment popup
+                  }
+                }}
+                style={{
+                  padding: '14px 32px',
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '2px solid rgba(255,255,255,0.2)',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  transition: 'all 0.3s'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)'
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.12)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                }}
+              >
+                ← Go Back
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -45,9 +45,9 @@ if not client:
 async def _call_groq_with_retry(model: str, messages: list, max_tokens: int, temperature: float = 0.95, **kwargs):
     """
     Call GROQ API with automatic retry on rate limit (429 errors).
-    Implements exponential backoff: 2s, 4s, 8s
+    Implements exponential backoff: 2s, 4s, 8s, 16s, 32s, etc.
     """
-    max_retries = 3
+    max_retries = 10  # Increased from 3 to 10 retries
     base_wait = 2
     
     for attempt in range(max_retries):
