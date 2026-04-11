@@ -251,6 +251,15 @@ MIT License - Free to use and modify
 
 ---
 
+## 👤 Team Members
+
+Taksh Gandhi
+Saniya Parmar
+Felista Periera
+Rishabh Tripathi
+
+---
+
 ## 🗓️ Roadmap
 
 - [ ] 📱 Mobile app (iOS & Android)
