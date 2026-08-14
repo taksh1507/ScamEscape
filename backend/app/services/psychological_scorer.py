@@ -141,10 +141,14 @@ class PsychologicalScorer:
         
         detected_rate = warnings_detected / (warnings_detected + warnings_missed)
         
-        # Detection is weighted more than catching red flags
+        # Detection is weighted more than catching red flags.
+        # NOTE: this used to multiply the already-0-100-scaled `awareness`
+        # value by 100 again before clamping (`min(100, awareness * 100)`),
+        # which meant almost any nonzero detection rate saturated to 100 —
+        # partial awareness was indistinguishable from perfect awareness.
         awareness = (detected_rate * 70) + ((red_flags_caught / max(1, red_flags_caught + red_flags_ignored)) * 30)
         
-        return min(100, awareness * 100)
+        return min(100, awareness)
     
     def calculate_decision_quality(
         self,
@@ -212,8 +216,14 @@ class PsychologicalScorer:
             # Slow but thoughtful
             return 70
         else:
-            # Too slow = confused/overwhelmed
-            return max(20, 100 - (avg_response_time - 120) / 10)
+            # Too slow = confused/overwhelmed.
+            # NOTE: this used to restart the decay from 100 here, which meant
+            # very slow responses (e.g. 200s) scored *higher* (92) than the
+            # ideal 20-60s band (90) — the opposite of the intended "sweet
+            # spot" design. Continue decaying from the 70 the "slow but
+            # thoughtful" band already reached, so the score never exceeds
+            # a faster band's score.
+            return max(20, 70 - (avg_response_time - 120) / 5)
     
     def calculate_skepticism_level(
         self,

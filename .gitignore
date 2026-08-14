@@ -26,3 +26,8 @@ npm-debug.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# Legacy local SQLite artifacts (removed in favor of MongoDB)
+*.db
+*.sqlite
+*.sqlite3

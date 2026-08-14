@@ -61,7 +61,8 @@ const Scanner = () => {
     if (!text.trim() && !image) return;
     setLoading(true); setResult(null); setError(null);
     try {
-      const res = await fetch('/api/chat', {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+      const res = await fetch(`${API_BASE}/scan/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

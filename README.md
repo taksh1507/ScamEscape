@@ -130,7 +130,7 @@ npm run dev
 | 🚀 **FastAPI** | 0.115+ | High-performance async framework |
 | 🐍 **Python** | 3.13+ | Backend logic & AI integration |
 | 🤖 **Groq LLaMA** | 3.3 | AI-powered scammer generation |
-| 💾 **SQLite** | 3.x | Data persistence & storage |
+| 💾 **MongoDB** | 6.x | Data persistence & storage |
 | ⚡ **WebSockets** | Native | Real-time communication |
 
 ### Frontend ⚡

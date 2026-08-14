@@ -72,31 +72,29 @@ async def api_room_leaderboard_mongodb(room_code: str):
         raise HTTPException(status_code=500, detail="Failed to retrieve leaderboard")
 
 
-# 🔥 ─── SQLite-based Leaderboard Endpoints (Persistent Storage) ───────────────────────────────────
+# ─── Persistent (all-time) Leaderboard Endpoints — MongoDB-backed ────────────
 
-@router.get("/leaderboard/sqlite/global")
-def api_global_leaderboard_sqlite(limit: int = 100):
-    """Get top players from SQLite leaderboard"""
+@router.get("/leaderboard/persistent/global")
+async def api_global_leaderboard_persistent(limit: int = 100):
+    """Get top players from the persistent, all-time leaderboard (MongoDB)."""
     try:
-        from app.services.sqlite_score_store import SQLiteScoreStore
-        leaderboard = SQLiteScoreStore.get_leaderboard(limit=limit)
+        leaderboard = await MongoDBService.get_round_leaderboard(limit=limit)
         return {
             "status": "success",
-            "source": "sqlite",
+            "source": "mongodb",
             "leaderboard": leaderboard,
             "total_entries": len(leaderboard)
         }
     except Exception as e:
-        log.error(f"Failed to get SQLite leaderboard: {e}")
+        log.error(f"Failed to get persistent leaderboard: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve leaderboard")
 
 
-@router.get("/leaderboard/sqlite/player/{player_id}")
-def api_player_stats_sqlite(player_id: str):
-    """Get player stats from SQLite"""
+@router.get("/leaderboard/persistent/player/{player_id}")
+async def api_player_stats_persistent(player_id: str):
+    """Get a player's all-time stats from the persistent leaderboard (MongoDB)."""
     try:
-        from app.services.sqlite_score_store import SQLiteScoreStore
-        stats = SQLiteScoreStore.get_player_stats(player_id)
+        stats = await MongoDBService.get_round_player_stats(player_id)
         if not stats:
             return {
                 "status": "not_found",
@@ -533,8 +531,8 @@ def submit_frontend_score(room_code: str, player_id: str, body: dict):
 
 
 @router.post("/save-round-score")
-def save_round_score(body: dict):
-    """Save Round 2 (Chat Payment) score to SQLite leaderboard with fraud detection result"""
+async def save_round_score(body: dict):
+    """Save Round 2 (Chat Payment) score to the persistent MongoDB leaderboard with fraud detection result"""
     try:
         room_code = body.get("room_code", "").upper()
         player_id = body.get("player_id", "")
@@ -566,9 +564,8 @@ def save_round_score(body: dict):
         else:
             grade = 'F'
         
-        # Save to SQLite via SQLiteScoreStore
-        from app.services.sqlite_score_store import SQLiteScoreStore
-        success = SQLiteScoreStore.save_score(
+        # Save to MongoDB (single persistent store for round scores)
+        success = await MongoDBService.save_round_score(
             player_id=player_id,
             nickname=nickname,
             room_code=room_code,

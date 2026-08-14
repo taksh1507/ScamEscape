@@ -457,6 +457,123 @@ class MongoDBService:
             return None
     
     @staticmethod
+    async def save_round_score(
+        player_id: str,
+        nickname: str,
+        room_code: str,
+        round_number: int,
+        score: int,
+        grade: str = "F",
+        result: Optional[str] = None,
+    ) -> bool:
+        """
+        Persist a single round's score and roll it into that player's running totals.
+
+        This replaces the old SQLite-based score store: MongoDB is now the single
+        source of truth for round history and the leaderboard.
+        """
+        try:
+            db = get_database()
+            if not db:
+                log.warning("MongoDB not connected, skipping save_round_score")
+                return False
+
+            record = {
+                "player_id": player_id,
+                "nickname": nickname,
+                "room_code": room_code,
+                "round_number": round_number,
+                "score": score,
+                "grade": grade,
+                "result": result,
+                "timestamp": datetime.utcnow(),
+            }
+
+            def _write():
+                db.round_scores.insert_one(record)
+                totals = db.player_totals.find_one({"player_id": player_id})
+                if totals:
+                    total_score = totals.get("total_score", 0) + score
+                    games_played = totals.get("games_played", 0) + 1
+                    db.player_totals.update_one(
+                        {"player_id": player_id},
+                        {"$set": {
+                            "nickname": nickname,
+                            "total_score": total_score,
+                            "games_played": games_played,
+                            "avg_score": total_score / games_played,
+                            "last_played": datetime.utcnow(),
+                            "last_grade": grade,
+                        }},
+                    )
+                else:
+                    db.player_totals.insert_one({
+                        "player_id": player_id,
+                        "nickname": nickname,
+                        "total_score": score,
+                        "games_played": 1,
+                        "avg_score": float(score),
+                        "last_played": datetime.utcnow(),
+                        "last_grade": grade,
+                    })
+
+            await asyncio.to_thread(_write)
+            log.info(f"✅ Saved round score: {player_id} - {score}pts (round {round_number})")
+            return True
+
+        except Exception as e:
+            log.warning(f"⚠️ Failed to save round score to MongoDB: {e}")
+            return False
+
+    @staticmethod
+    async def get_round_leaderboard(limit: int = 100) -> List[Dict[str, Any]]:
+        """Get the persistent (all-time) leaderboard, aggregated from round scores."""
+        try:
+            db = get_database()
+            if not db:
+                return []
+
+            def fetch():
+                cursor = (
+                    db.player_totals.find({})
+                    .sort([("total_score", -1), ("last_played", -1)])
+                    .limit(limit)
+                )
+                rows = list(cursor)
+                for i, row in enumerate(rows, start=1):
+                    row["rank"] = i
+                    row.pop("_id", None)
+                return rows
+
+            leaderboard = await asyncio.to_thread(fetch)
+            log.info(f"✅ Retrieved persistent leaderboard: {len(leaderboard)} entries")
+            return leaderboard
+
+        except Exception as e:
+            log.warning(f"⚠️ Failed to get round leaderboard from MongoDB: {e}")
+            return []
+
+    @staticmethod
+    async def get_round_player_stats(player_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single player's all-time totals, built from round scores."""
+        try:
+            db = get_database()
+            if not db:
+                return None
+
+            def fetch():
+                row = db.player_totals.find_one({"player_id": player_id})
+                if row:
+                    row.pop("_id", None)
+                return row
+
+            return await asyncio.to_thread(fetch)
+
+        except Exception as e:
+            log.warning(f"⚠️ Failed to get player stats from MongoDB: {e}")
+            return None
+
+    @staticmethod
     async def save_response(response_data: Dict[str, Any]) -> bool:
         """
         Save player response with AI analysis for scoring and learning

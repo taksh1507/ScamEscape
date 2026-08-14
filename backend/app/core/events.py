@@ -1,10 +1,11 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.utils.logger import get_logger
-from app.core.config import log_configuration
+from app.core.config import log_configuration, validate_configuration, ConfigurationError
 from app.core.mongodb import connect_to_mongo, close_mongo_connection
 import signal
 import sys
+import threading
 
 log = get_logger(__name__)
 
@@ -19,6 +20,14 @@ async def lifespan(app: FastAPI):
     
     # Log configuration (deferred from import time)
     log_configuration()
+
+    # Fail fast if required config (LLM key) is missing, instead of
+    # booting successfully and failing deep inside a live game round.
+    try:
+        validate_configuration()
+    except ConfigurationError as e:
+        log.error(f"❌ Startup aborted: {e}")
+        raise
     
     # Initialize MongoDB
     try:
@@ -26,9 +35,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning(f"⚠️ MongoDB initialization note: {e}")
     
-    # Register signal handlers for clean shutdown
-    signal.signal(signal.SIGINT, handle_shutdown)
-    signal.signal(signal.SIGTERM, handle_shutdown)
+    # Register signal handlers for clean shutdown.
+    # signal.signal() only works from the main thread of the main
+    # interpreter (e.g. `uvicorn app.main:app`). It raises ValueError when
+    # the app is run inside a worker thread — which is exactly what
+    # happens under TestClient/anyio in tests, and potentially under some
+    # embedding/hosting setups. Guard it so those environments don't crash
+    # on startup; graceful Ctrl+C shutdown just isn't needed there.
+    if threading.current_thread() is threading.main_thread():
+        try:
+            signal.signal(signal.SIGINT, handle_shutdown)
+            signal.signal(signal.SIGTERM, handle_shutdown)
+        except (ValueError, OSError) as e:
+            log.warning(f"⚠️ Could not register shutdown signal handlers: {e}")
     
     yield
     

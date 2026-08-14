@@ -17,7 +17,7 @@ from app.models.game_state import GameState
 from app.state.game_store import get_game, save_game
 from app.state.player_store import get_player, get_players_in_room
 from app.services.scoring import score_round
-from app.services.sqlite_score_store import SQLiteScoreStore
+from app.services.mongodb_service import MongoDBService
 from app.constants.game_constants import (
     ROUND_DURATION_SECONDS,
     ROUND_BUFFER_SECONDS,
@@ -234,15 +234,18 @@ async def run_adaptive_call_round(room_code: str, round_number: int, broadcast_f
             player.score += points_awarded
             save_player(player)
             
-            # 🔥 SAVE TO SQLITE FOR LEADERBOARD
-            SQLiteScoreStore.save_score(
-                player_id=p.player_id,
-                nickname=player.nickname,
-                room_code=room_code,
-                round_number=round_number,
-                score=points_awarded,
-                grade=grade_letter
-            )
+            # 🔥 SAVE TO MONGODB FOR PERSISTENT LEADERBOARD
+            try:
+                asyncio.create_task(MongoDBService.save_round_score(
+                    player_id=p.player_id,
+                    nickname=player.nickname,
+                    room_code=room_code,
+                    round_number=round_number,
+                    score=points_awarded,
+                    grade=grade_letter,
+                ))
+            except Exception as e:
+                log.warning(f"⚠️ Failed to queue round score save: {e}")
             
             result_entries.append({
                 "player_id": p.player_id,

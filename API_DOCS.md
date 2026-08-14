@@ -426,8 +426,79 @@ curl -X GET "http://localhost:8000/api/chat/generate?emotion_type=relative_emerg
 
 ### Check Health
 ```bash
-curl -X GET http://localhost:8000/health
+curl -X GET http://localhost:8000/health/health
 ```
+
+---
+
+## 🔌 WebSocket Contract
+
+The backend exposes three WebSocket endpoints. All messages are JSON. Each
+message from the client has a `type` field; each message from the server
+has an `event` field.
+
+### `/rooms/ws/lobby/{room_code}/{player_id}` — Lobby socket
+
+Used while players are waiting in a room before the game starts.
+
+**Client → Server**
+
+| `type` | Payload | Purpose |
+|---|---|---|
+| `ping` | `{}` | Keepalive; server replies with `pong` |
+| `chat` | `{ "type": "chat", "message": "..." }` | Send a lobby chat message |
+| `start_game` | `{}` | Room leader starts the game |
+
+**Server → Client**
+
+| `event` | Payload | Meaning |
+|---|---|---|
+| `pong` | `{}` | Reply to `ping` |
+| `player_joined` | `{ player_id, nickname, ... }` | A new player joined the room |
+| `player_left` | `{ player_id, nickname, ... }` | A player left the room |
+| `chat` | `{ player_id, nickname, message }` | Broadcast lobby chat message |
+| `game_starting` | `{}` | Leader triggered game start; clients should transition to the game socket |
+| `error` | `{ message }` | Something went wrong (e.g. invalid room) |
+
+### `/game/ws/{room_code}/{player_id}` — Game socket
+
+Used during active gameplay (Round 1 call simulation and round lifecycle
+events). Connect to this after `game_starting` is received on the lobby
+socket.
+
+**Client → Server**
+
+| `type` | Payload | Purpose |
+|---|---|---|
+| `ping` | `{}` | Keepalive; server replies with `pong` |
+| `submit_action` | `{ "type": "submit_action", "action": "hang_up" \| "call_back" \| "ask_questions" \| "share" \| ... }` | Submit the player's final action for the active round |
+| `user_action` | `{ "type": "user_action", "action": { "option": "...", "risk_level": "low" \| "medium" \| "high" } }` | Submit an in-call choice during the adaptive call flow (used for phase-by-phase branching, distinct from the final `submit_action`) |
+
+**Server → Client**
+
+| `event` | Payload | Meaning |
+|---|---|---|
+| `pong` | `{}` | Reply to `ping` |
+| `action_received` | `{ action }` | Acknowledges a submitted action (or `"already_submitted"` if duplicate) |
+| `game_start` | `{}` | Game has begun |
+| `start_round` | `{ round_number, ... }` | A new round has started |
+| `timer_tick` | `{ seconds_remaining }` | Periodic countdown update during a round |
+| `call_update` | `{ phase, script, ... }` | The simulated scam call has advanced to a new phase |
+| `round_result` | `{ round_number, correct_action, red_flags, results: [...], ttl }` | Round finished; per-player scoring breakdown |
+| `game_over` | `{ leaderboard: [...] }` | All rounds complete; final leaderboard |
+| `error` | `{ message }` | Something went wrong (e.g. no active round, invalid room/player) |
+
+**Notes for client implementers**
+
+- Both sockets upper-case `room_code` server-side, so the client doesn't
+  need to normalize casing before connecting.
+- `submit_action` is idempotent per round — sending it twice returns
+  `action_received` with `action: "already_submitted"` rather than an
+  error, so clients don't need to guard against double-submits themselves.
+- There is currently no reconnect/resume message — if the socket drops
+  mid-round, the client should re-fetch room/game state via the REST
+  endpoints (`GET /rooms/...`, `GET /game/leaderboard/{room_code}`) after
+  reconnecting, rather than assuming the WebSocket will replay missed events.
 
 ---
 

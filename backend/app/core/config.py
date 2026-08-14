@@ -59,3 +59,27 @@ def log_configuration():
     logger.info(f"🔍 Debug Mode: {settings.DEBUG}")
 
 
+class ConfigurationError(RuntimeError):
+    """Raised when required configuration is missing at startup."""
+
+
+def validate_configuration() -> None:
+    """
+    Fail fast if configuration required for the app to function is missing.
+
+    The whole game (call/chat simulation, scoring feedback) depends on an
+    LLM provider being reachable. Previously a missing key only produced a
+    log warning, so the app would boot fine and then fail deep inside a
+    live game round. Better to refuse to start.
+    """
+    has_llm_key = bool(
+        settings.GROQ_API_KEY or settings.OPENAI_API_KEY or settings.OPENROUTER_API_KEY
+    )
+    if not has_llm_key:
+        raise ConfigurationError(
+            "No LLM API key configured. Set GROQ_API_KEY (recommended), "
+            "OPENAI_API_KEY, or OPENROUTER_API_KEY in your .env file. "
+            "Get a free Groq key at https://console.groq.com/keys"
+        )
+
+
