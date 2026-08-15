@@ -246,6 +246,8 @@ class MongoDBService:
                             "nickname": {"$first": "$nickname"},
                             "total_score": {"$sum": {"$cond": ["$final_score", "$final_score", "$score"]}},
                             "games_played": {"$sum": 1},
+                            "games_won": {"$sum": "$games_won"},
+                            "games_scammed": {"$sum": "$games_scammed"},
                             "last_played": {"$max": "$updated_at"}
                         }
                     },
@@ -257,11 +259,19 @@ class MongoDBService:
                                     {"$divide": ["$total_score", "$games_played"]},
                                     0
                                 ]
+                            },
+                            "adaptive_rating": {
+                                "$add": [
+                                    1000,
+                                    {"$multiply": ["$games_won", 150]},
+                                    {"$multiply": ["$games_scammed", -50]},
+                                    "$total_score"
+                                ]
                             }
                         }
                     },
                     {
-                        "$sort": {"total_score": -1}
+                        "$sort": {"adaptive_rating": -1}
                     },
                     {
                         "$limit": limit
@@ -279,7 +289,10 @@ class MongoDBService:
                     player_id=result.get("_id", ""),
                     nickname=result.get("nickname", "Unknown"),
                     total_score=int(result.get("total_score", 0)),
+                    adaptive_rating=result.get("adaptive_rating", 1000),
                     games_played=result.get("games_played", 0),
+                    games_won=result.get("games_won", 0),
+                    games_scammed=result.get("games_scammed", 0),
                     average_score=result.get("average_score", 0.0),
                     last_played=result.get("last_played")
                 )

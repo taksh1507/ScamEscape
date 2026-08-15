@@ -11,7 +11,7 @@ interface LeaderboardEntry {
   nickname: string
   total_score: number
   adaptive_rating: number
-  total_games: number
+  games_played: number
   games_won: number
   games_scammed: number
 }
@@ -24,7 +24,7 @@ export default function LeaderboardPage() {
     const fetchLeaderboard = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-        const res = await fetch(`${apiUrl}/api/game/leaderboard/persistent/global`)
+        const res = await fetch(`${apiUrl}/api/game/leaderboard/global/top`)
         const data = await res.json()
         if (data.leaderboard) {
           setEntries(data.leaderboard)
@@ -66,7 +66,7 @@ export default function LeaderboardPage() {
               
               {/* Data Rows */}
               {entries.map((entry, idx) => {
-                const winRate = entry.total_games > 0 ? Math.round((entry.games_won / entry.total_games) * 100) : 0
+                const winRate = entry.games_played > 0 ? Math.round((entry.games_won / entry.games_played) * 100) : 0
                 return (
                   <div key={idx} style={{ 
                     display: 'grid', 
