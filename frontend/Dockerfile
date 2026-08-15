@@ -25,13 +25,13 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-RUN useradd --create-home --uid 1000 appuser
+# node:20-slim already ships a 'node' user at UID 1000 — reuse it.
 
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=appuser:appuser /app/.next/standalone ./
-COPY --from=builder --chown=appuser:appuser /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 
-USER appuser
+USER node
 EXPOSE 3000
 
 CMD ["node", "server.js"]
