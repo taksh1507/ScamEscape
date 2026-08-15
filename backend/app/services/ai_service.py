@@ -8,6 +8,7 @@ All content is in ENGLISH, but with Indian company/organization context.
 
 import json
 import random
+import asyncio
 from typing import Optional, Dict, Any, List
 from openai import AsyncOpenAI
 from app.constants.scenario_types import CallPhase

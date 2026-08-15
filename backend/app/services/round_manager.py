@@ -278,7 +278,6 @@ async def run_adaptive_call_round(room_code: str, round_number: int, broadcast_f
             }
             
             try:
-                import asyncio
                 asyncio.create_task(MongoDBService.save_response(response_data))
             except Exception as e:
                 log.warning(f"⚠️ Failed to queue response save: {e}")
@@ -322,11 +321,11 @@ async def run_standard_timed_round(room_code: str, round_number: int, broadcast_
     await broadcast_fn(room_code, {
         "event": "start_round",
         "data": {
-            "type": scenario_public["type"],
+            "type": scenario_data["type"],
             "round_number": round_number,
             "duration": ROUND_DURATION_SECONDS,
-            "content": scenario_public["payload"],
-            "red_flags": scenario_public["red_flags"],
+            "content": scenario_data["payload"],
+            "red_flags": scenario_data["red_flags"],
             "ttl": time.time() + ROUND_DURATION_SECONDS  # Valid for the round duration
         }
     })

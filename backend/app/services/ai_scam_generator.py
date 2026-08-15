@@ -240,7 +240,7 @@ Generate 10-15 DETAILED WhatsApp scam messages (each 2-3 sentences):
 12. Second nudge: "Have you completed the payment? Your package is sitting in delivery queue and will expire in 45 minutes"
 13. Create doubt: "If you don't pay, the customs auction fee is ₹1,200. Better to pay ₹399 now"
 14. Increase pressure: "I can see 5 other packages ahead of yours. If you don't pay in 10 minutes, you'll go to the back of the queue"
-15. Final push: "The address on file is {some-area}. If someone else picks up your package due to expired hold, {institution} won't be responsible"
+15. Final push: "The address on file is [an area]. If someone else picks up your package due to expired hold, {institution} won't be responsible"
 Return ONLY a valid JSON array of strings.
 """,
                 ScammerType.FRIEND_CONTACT: """
