@@ -1206,3 +1206,32 @@ class MongoDBService:
         except Exception as e:
             log.error(f"❌ Failed to save player stats: {e}")
             return False
+
+    @staticmethod
+    async def delete_room_data(room_code: str) -> bool:
+        """
+        Delete a room and its associated players from MongoDB to prevent clutter
+        
+        Args:
+            room_code: The code of the room to delete
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            db = get_database()
+            if not db:
+                return False
+                
+            def _delete():
+                rooms_result = db.rooms.delete_one({"room_code": room_code})
+                players_result = db.players.delete_many({"room_code": room_code})
+                return rooms_result.deleted_count, players_result.deleted_count
+                
+            deleted_rooms, deleted_players = await asyncio.to_thread(_delete)
+            log.info(f"🧹 [CLEANUP] Deleted room {room_code} and {deleted_players} players from MongoDB")
+            return True
+            
+        except Exception as e:
+            log.warning(f"⚠️ Failed to delete room data from MongoDB: {e}")
+            return False

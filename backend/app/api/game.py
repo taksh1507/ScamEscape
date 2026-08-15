@@ -509,7 +509,19 @@ def close_room(room_code: str, _user: User | None = Depends(get_current_user_opt
     
     # Clean up game data
     try:
+        from app.state.rooms_store import delete_room
         delete_game(room_code)
+        delete_room(room_code)
+        
+        # Also delete room data from MongoDB to prevent clutter
+        import asyncio
+        from app.services.mongodb_service import MongoDBService
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(MongoDBService.delete_room_data(room_code))
+        except RuntimeError:
+            asyncio.run(MongoDBService.delete_room_data(room_code))
+            
         log.info(f"🔥 [ROOM CLOSED] Room {room_code} closed and cleaned up")
     except Exception as e:
         log.warning(f"Failed to delete game data for room {room_code}: {e}")
