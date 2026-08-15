@@ -190,31 +190,30 @@ async def start_game(room_code: str, broadcast_fn, difficulty: str = "easy") -> 
 
 def _build_leaderboard(room_code: str):
     """
-    Build realistic leaderboard by analyzing player performance stats.
+    Build realistic leaderboard by analyzing real player performance stats.
     Scans room for:
+    - Accumulated ML score (p.score)
     - Win rate (games won / total games)
     - Scammed rate (times fell for scam)
-    - Average score per game
-    - Generates realistic scores based on performance
+    - Adaptive Scam Elo Rating
     
     Returns sorted list of players by total score with detailed stats.
     """
-    import random
-    
     players = get_players_in_room(room_code)
     leaderboard_data = []
     
     for i, p in enumerate(players):
-        # 🔥 Generate realistic score based on performance
+        # Calculate real stats
         total_games_played = p.total_games if p.total_games > 0 else 1
         win_rate = (p.games_won / total_games_played * 100) if total_games_played > 0 else 0
         
-        # Base score: Calculate from games won and lost
-        base_score = (p.games_won * 100) + (p.games_scammed * 25)  # Success = 100pts, scammed = 25pts
+        # Base score is exactly what they earned from the ML evaluations during the rounds
+        final_score = p.score
         
-        # Add randomness for variety (±10% variation)
-        random_variation = random.uniform(0.9, 1.1)
-        final_score = int(base_score * random_variation)
+        # Adaptive Scam Rating (Elo-like system)
+        # Base rating of 1000. Winning adds more rating if win rate is lower, scaling up.
+        # This rewards players who survive scams even if they fell for others previously.
+        adaptive_rating = 1000 + (p.games_won * 150) - (p.games_scammed * 50) + final_score
         
         # Update player's calculated stats
         p.avg_score_per_game = final_score / total_games_played
@@ -225,6 +224,7 @@ def _build_leaderboard(room_code: str):
             "player_id": p.player_id,
             "nickname": p.nickname,
             "total_score": final_score,
+            "adaptive_rating": adaptive_rating,
             "total_games": total_games_played,
             "games_won": p.games_won,  # Avoided scam
             "games_scammed": p.games_scammed,  # Fell for scam

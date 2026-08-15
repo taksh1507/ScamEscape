@@ -26,6 +26,10 @@ class LeaderboardEntry(BaseModel):
     player_id: str
     nickname: str
     total_score: int
+    adaptive_rating: int = 1000
+    total_games: int = 0
+    games_won: int = 0
+    games_scammed: int = 0
 
 class LeaderboardResponse(BaseModel):
     room_code: str

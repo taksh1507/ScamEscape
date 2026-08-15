@@ -104,6 +104,7 @@ class LeaderboardEntryDB(BaseModel):
     player_id: str
     nickname: str
     total_score: int
+    adaptive_rating: int = 1000
     games_played: int = 0
     average_score: float = 0.0
     last_played: Optional[datetime] = None
