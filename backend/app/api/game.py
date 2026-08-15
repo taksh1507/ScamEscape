@@ -9,7 +9,11 @@ from app.state.rooms_store import get_room, save_room, delete_room
 from app.state.game_store import get_game, delete_game
 from app.state.player_store import get_player
 from app.core.websocket import register, unregister, broadcast_to_room, send_to_player
+from app.core.security import get_ws_user_optional, get_current_user_optional
+from app.core.config import settings
 from app.models.room import RoomStatus
+from app.models.user import User
+from fastapi import Depends
 from app.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -484,8 +488,14 @@ def _generate_motivational_message(num_responses, improvement_percent):
 
 
 @router.post("/close/{room_code}")
-def close_room(room_code: str):
-    """🔥 Close a game room and clean up resources"""
+def close_room(room_code: str, _user: User | None = Depends(get_current_user_optional)):
+    """🔥 Close a game room and clean up resources.
+
+    Gated by REQUIRE_AUTH like the WebSocket connections above (see
+    app.core.security.get_current_user_optional) — anonymous by default so
+    the current admin/cleanup flow keeps working, but a single config flip
+    makes this a properly authenticated moderator action.
+    """
     room_code = room_code.upper()
     room = get_room(room_code)
     
@@ -693,6 +703,13 @@ Score the user's overall performance.""",
 @router.websocket("/ws/{room_code}/{player_id}")
 async def websocket_endpoint(ws: WebSocket, room_code: str, player_id: str):
     room_code = room_code.upper()
+
+    # Same pre-accept auth pattern as the lobby WS (see room.py) — required
+    # to reject before the handshake completes rather than after.
+    ws_user = await get_ws_user_optional(ws)
+    if ws_user is None and settings.REQUIRE_AUTH:
+        return  # socket already closed by get_ws_user_optional
+
     await ws.accept()
 
     room   = get_room(room_code)

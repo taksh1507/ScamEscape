@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -14,7 +14,7 @@ import CursorEffect  from '@/components/ui/CursorEffect'
 import Toast         from '@/components/ui/Toast'
 import { useToast }  from '@/hooks/useToast'
 
-export default function HomePage() {
+function HomePageContent() {
   const { toast, show: showToast } = useToast()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -125,5 +125,13 @@ export default function HomePage() {
       </main>
       <Footer />
     </>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
   )
 }

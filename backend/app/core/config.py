@@ -18,6 +18,18 @@ class Settings(BaseSettings):
     MONGODB_URL: str = "mongodb://localhost:27017"
     DATABASE_NAME: str = "scamescape"
 
+    # 🧠 Redis (shared room/game state across backend instances)
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # 🔐 Auth
+    JWT_SECRET_KEY: str = "dev-only-insecure-secret-change-me"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24h
+    # Feature flag: when False (default), auth-protected routes/WS still work
+    # anonymously so the existing demo flow keeps working. Flip to True once
+    # the frontend has a real login flow wired in.
+    REQUIRE_AUTH: bool = False
+
     class Config:
         # 🔥 FIX: Always look for .env in the backend directory (app's root)
         env_file = str(Path(__file__).parent.parent.parent / ".env")

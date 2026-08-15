@@ -79,6 +79,10 @@ def create_indexes():
         db.players.create_index("player_id", unique=True)
         db.players.create_index("room_code")
         db.players.create_index("created_at")
+
+        # User account indexes
+        db.users.create_index("email", unique=True)
+        db.users.create_index("user_id", unique=True)
         
         # Game session indexes
         db.game_sessions.create_index("room_code", unique=True)

@@ -6,6 +6,8 @@ from app.services.game_engine import start_game
 from app.state.player_store import get_players_in_room, get_player
 from app.state.rooms_store import get_room, all_rooms
 from app.core.websocket import register, unregister, broadcast_to_room, send_to_player
+from app.core.security import get_ws_user_optional
+from app.core.config import settings
 from app.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -94,6 +96,16 @@ def api_get_room(room_code: str):
 @router.websocket("/ws/lobby/{room_code}/{player_id}")
 async def lobby_websocket(ws: WebSocket, room_code: str, player_id: str):
     room_code = room_code.upper()
+
+    # Auth check MUST happen before accept() — once accepted, a policy-violation
+    # close still completes the handshake, which is a worse UX than rejecting
+    # it outright. get_ws_user_optional() closes the socket itself on failure
+    # when REQUIRE_AUTH is on; a None return with REQUIRE_AUTH off just means
+    # "anonymous", which is today's default behavior.
+    ws_user = await get_ws_user_optional(ws)
+    if ws_user is None and settings.REQUIRE_AUTH:
+        return  # socket already closed by get_ws_user_optional
+
     await ws.accept()
 
     room = get_room(room_code)

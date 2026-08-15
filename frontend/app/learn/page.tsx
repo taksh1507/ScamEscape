@@ -800,7 +800,7 @@ export default function LearnPage() {
   const [totalAnswers, setTotalAnswers] = useState(0)
   const [streak, setStreak] = useState(0)
   const [recentXp, setRecentXp] = useState<number | null>(null)
-  const xpTimer = useRef<ReturnType<typeof setTimeout>>()
+  const xpTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const handleComplete = (id: string, type: 'module' | 'scenario' = 'module') => {
     if (type === 'module' && !completedModules.includes(id)) setCompletedModules(prev => [...prev, id])
