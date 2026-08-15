@@ -7,7 +7,8 @@ const nextConfig: NextConfig = {
   },
   // Produces a minimal standalone server (server.js + only the deps it needs)
   // so the production Docker image doesn't have to ship full node_modules.
-  output: 'standalone',
+  // NOTE: Disabled because Vercel native deployments fail with ENOENT for .nft.json if this is set.
+  // output: 'standalone',
 }
 
 export default nextConfig
