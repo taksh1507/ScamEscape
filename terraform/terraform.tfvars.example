@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars and fill in real values.
+# terraform.tfvars is gitignored — never commit real secrets here.
+
+project_id = "your-gcp-project-id"
+region     = "asia-south1"
+
+# Comma-separated — include your Vercel production domain and, if you
+# want preview deploys to work too, the wildcard preview pattern isn't
+# supported by exact-match CORS, so add specific preview URLs as needed.
+frontend_origin = "https://your-app.vercel.app"
+
+groq_api_key    = "gsk_xxxxxxxxxxxxxxxxxxxx"
+mongodb_url     = "mongodb+srv://user:password@cluster.mongodb.net/?retryWrites=true&w=majority"
+redis_url       = "rediss://default:password@your-redis.upstash.io:6379"
+jwt_secret_key  = "generate-with: openssl rand -hex 32"

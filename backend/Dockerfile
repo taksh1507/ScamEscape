@@ -27,7 +27,13 @@ USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/health')" || exit 1
+# Cloud Run, Render, and Railway all inject a $PORT env var the container
+# must bind to (Cloud Run defaults to 8080, others vary) — a hardcoded port
+# breaks on all three. Falls back to 8000 for local `docker run` / compose.
+ENV PORT=8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", 8000)}/health/health')" || exit 1
+
+# Shell form so $PORT is expanded at container start, not build time.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT}

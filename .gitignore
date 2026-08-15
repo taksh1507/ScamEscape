@@ -28,6 +28,13 @@ npm-debug.log*
 *.tsbuildinfo
 
 # Legacy local SQLite artifacts (removed in favor of MongoDB)
+
+# Terraform — real values only ever live in your local .tfvars or CI secrets
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/terraform.tfvars
+terraform/*.tfplan
 *.db
 *.sqlite
 *.sqlite3
