@@ -20,8 +20,9 @@ COPY backend/ /app/backend/
 
 WORKDIR /app/backend
 
-# Create a non-root user and drop root privileges
-RUN useradd --create-home --uid 1000 appuser \
+# Create a non-root user and drop root privileges.
+# Use --uid 1001 to avoid clashing with any existing UID 1000 in the base image.
+RUN useradd --create-home --uid 1001 appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
