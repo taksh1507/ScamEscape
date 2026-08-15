@@ -1,4 +1,4 @@
-# 📚 ScamEscape API Documentation
+# ScamEscape API Documentation
 
 ## Overview
 
@@ -14,7 +14,7 @@ ReDoc: `http://localhost:8000/redoc`
 
 ---
 
-## 🎮 Game Management Endpoints
+## Game Management Endpoints
 
 ### 1. Create Room
 **POST** `/api/game/create-room`
@@ -118,7 +118,7 @@ Submit a player's action during gameplay.
 
 ---
 
-## 💬 Chat Endpoints
+## Chat Endpoints
 
 ### 5. Generate Chat Scenario
 **GET** `/api/chat/generate`
@@ -189,7 +189,7 @@ Generate the next message in an ongoing chat conversation.
 
 ---
 
-## 📊 Leaderboard Endpoints
+## Leaderboard Endpoints
 
 ### 7. Get Leaderboard
 **GET** `/api/leaderboard`
@@ -219,7 +219,7 @@ Get leaderboard for a specific room.
 
 ---
 
-## 🔍 Status Endpoints
+## Status Endpoints
 
 ### 8. Health Check
 **GET** `/health`
@@ -251,7 +251,7 @@ Check if chat generation is available.
 
 ---
 
-## 🔐 Authentication & CORS
+## Authentication & CORS
 
 ### CORS Policy
 The backend allows requests from:
@@ -270,7 +270,7 @@ socket.onmessage = (event) => {
 
 ---
 
-## 📋 Data Models
+## Data Models
 
 ### Room
 ```typescript
@@ -320,7 +320,7 @@ socket.onmessage = (event) => {
 
 ---
 
-## ⚠️ Error Responses
+## Error Responses
 
 ### 400 Bad Request
 ```json
@@ -356,7 +356,7 @@ socket.onmessage = (event) => {
 
 ---
 
-## 🔄 Rate Limiting
+## Rate Limiting
 
 - **Chat Generation**: 3 automatic retries with exponential backoff (2s, 4s, 8s)
 - **GROQ API**: No official rate limit on free tier
@@ -364,7 +364,7 @@ socket.onmessage = (event) => {
 
 ---
 
-## 📱 WebSocket Events
+## WebSocket Events
 
 ### Connection
 ```javascript
@@ -406,7 +406,7 @@ ws://localhost:8000/ws/room/{room_code}/{player_id}
 
 ---
 
-## 🧪 Testing with cURL
+## Testing with cURL
 
 ### Create Room
 ```bash
@@ -426,22 +426,22 @@ curl -X GET "http://localhost:8000/api/chat/generate?emotion_type=relative_emerg
 
 ### Check Health
 ```bash
-curl -X GET http://localhost:8000/health/health
+curl -X GET http://localhost:8000/health
 ```
 
 ---
 
-## 🔌 WebSocket Contract
+## WebSocket Contract
 
 The backend exposes three WebSocket endpoints. All messages are JSON. Each
 message from the client has a `type` field; each message from the server
 has an `event` field.
 
-### `/rooms/ws/lobby/{room_code}/{player_id}` — Lobby socket
+### `/rooms/ws/lobby/{room_code}/{player_id}` - Lobby socket
 
 Used while players are waiting in a room before the game starts.
 
-**Client → Server**
+**Client -> Server**
 
 | `type` | Payload | Purpose |
 |---|---|---|
@@ -449,7 +449,7 @@ Used while players are waiting in a room before the game starts.
 | `chat` | `{ "type": "chat", "message": "..." }` | Send a lobby chat message |
 | `start_game` | `{}` | Room leader starts the game |
 
-**Server → Client**
+**Server -> Client**
 
 | `event` | Payload | Meaning |
 |---|---|---|
@@ -460,13 +460,13 @@ Used while players are waiting in a room before the game starts.
 | `game_starting` | `{}` | Leader triggered game start; clients should transition to the game socket |
 | `error` | `{ message }` | Something went wrong (e.g. invalid room) |
 
-### `/game/ws/{room_code}/{player_id}` — Game socket
+### `/game/ws/{room_code}/{player_id}` - Game socket
 
 Used during active gameplay (Round 1 call simulation and round lifecycle
 events). Connect to this after `game_starting` is received on the lobby
 socket.
 
-**Client → Server**
+**Client -> Server**
 
 | `type` | Payload | Purpose |
 |---|---|---|
@@ -474,7 +474,7 @@ socket.
 | `submit_action` | `{ "type": "submit_action", "action": "hang_up" \| "call_back" \| "ask_questions" \| "share" \| ... }` | Submit the player's final action for the active round |
 | `user_action` | `{ "type": "user_action", "action": { "option": "...", "risk_level": "low" \| "medium" \| "high" } }` | Submit an in-call choice during the adaptive call flow (used for phase-by-phase branching, distinct from the final `submit_action`) |
 
-**Server → Client**
+**Server -> Client**
 
 | `event` | Payload | Meaning |
 |---|---|---|
@@ -492,17 +492,17 @@ socket.
 
 - Both sockets upper-case `room_code` server-side, so the client doesn't
   need to normalize casing before connecting.
-- `submit_action` is idempotent per round — sending it twice returns
+- `submit_action` is idempotent per round - sending it twice returns
   `action_received` with `action: "already_submitted"` rather than an
   error, so clients don't need to guard against double-submits themselves.
-- There is currently no reconnect/resume message — if the socket drops
+- There is currently no reconnect/resume message - if the socket drops
   mid-round, the client should re-fetch room/game state via the REST
   endpoints (`GET /rooms/...`, `GET /game/leaderboard/{room_code}`) after
   reconnecting, rather than assuming the WebSocket will replay missed events.
 
 ---
 
-## 📖 For More Information
+## For More Information
 
 - **Setup Guide**: See [SETUP.md](./SETUP.md)
 - **Architecture**: See [ARCHITECTURE.md](./ARCHITECTURE.md) (if available)

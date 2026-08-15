@@ -1,29 +1,29 @@
-# 🛡️ Security Policy
+# Security Policy
 
-## 📌 Supported Versions
+## Supported Versions
 
-We actively maintain and provide security updates for the following versions of **ScamEscape**:
+We actively maintain and provide security updates for the following versions of ScamEscape:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.x.x   | ✅ Supported        |
-| 1.x.x   | ⚠️ Limited Support |
-| < 1.0   | ❌ Not Supported    |
+| 2.x.x   | Supported          |
+| 1.x.x   | Limited Support    |
+| < 1.0   | Not Supported      |
 
 > We strongly recommend using the latest version to ensure maximum security and performance.
 
 ---
 
-## 🚨 Reporting a Vulnerability
+## Reporting a Vulnerability
 
-We take security seriously. If you discover a vulnerability in **ScamEscape**, please report it responsibly.
+We take security seriously. If you discover a vulnerability in ScamEscape, please report it responsibly.
 
-### 📩 How to Report
+### How to Report
 
-- Email: **takshgandhi4@gmail.com*
-- Subject: `Vulnerability Report - ScamEscape`
+- Email: takshgandhi4@gmail.com
+- Subject: Vulnerability Report - ScamEscape
 
-### 📝 Please Include
+### Please Include
 
 - Detailed description of the issue  
 - Steps to reproduce  
@@ -32,30 +32,30 @@ We take security seriously. If you discover a vulnerability in **ScamEscape**, p
 
 ---
 
-## ⏱️ Response Timeline
+## Response Timeline
 
 | Stage | Timeframe |
 |------|----------|
-| Initial acknowledgment | Within 24–48 hours |
-| Investigation | 2–5 business days |
-| Resolution / Patch | 5–10 business days |
+| Initial acknowledgment | Within 24-48 hours |
+| Investigation | 2-5 business days |
+| Resolution / Patch | 5-10 business days |
 
 ---
 
-## 🔍 What to Expect
+## What to Expect
 
 After submitting a report:
 
-- ✅ Acknowledgment within 48 hours  
-- 🔍 Investigation and validation  
-- 🛠️ If confirmed:
+- Acknowledgment within 48 hours  
+- Investigation and validation  
+- If confirmed:
   - Fix will be implemented  
   - Security patch will be released  
   - Credit may be given to the reporter  
 
 ---
 
-## ❌ Non-Qualifying Reports
+## Non-Qualifying Reports
 
 The following may not be considered valid vulnerabilities:
 
@@ -66,9 +66,9 @@ The following may not be considered valid vulnerabilities:
 
 ---
 
-## 🔐 Security Best Practices
+## Security Best Practices
 
-To keep **ScamEscape** secure:
+To keep ScamEscape secure:
 
 - Always use the latest version  
 - Never expose API keys (Groq/OpenAI) in frontend  
@@ -79,7 +79,7 @@ To keep **ScamEscape** secure:
 
 ---
 
-## ⚠️ Scope
+## Scope
 
 This policy applies to:
 
@@ -90,7 +90,7 @@ This policy applies to:
 
 ---
 
-## 🙏 Responsible Disclosure
+## Responsible Disclosure
 
 We request that you:
 
@@ -100,21 +100,21 @@ We request that you:
 
 ---
 
-## 🏆 Acknowledgment
+## Acknowledgment
 
 We appreciate responsible disclosure and contributions from the community.  
 Valid reports may be acknowledged in future updates.
 
 ---
 
-## 📢 Updates
+## Updates
 
 This policy may be updated periodically.  
 Please refer to this file for the latest version.
 
 ---
 
-# 🔒 Commitment
+# Commitment
 
-**ScamEscape** is built to help users identify and avoid scams through real-world simulations.  
+ScamEscape is built to help users identify and avoid scams through real-world simulations.  
 Security is a core part of our platform and development process.

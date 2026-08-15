@@ -1,6 +1,6 @@
-# 🚀 ScamEscape - Complete Setup Guide
+# ScamEscape - Complete Setup Guide
 
-## 📋 Table of Contents
+## Table of Contents
 1. [System Requirements](#system-requirements)
 2. [API Key Setup](#api-key-setup)
 3. [Database Setup](#database-setup)
@@ -11,20 +11,20 @@
 
 ---
 
-## 🖥️ System Requirements
+## System Requirements
 
 ### Minimum Requirements
-- **RAM**: 4GB (2GB minimum, but tight)
+- **RAM**: 4GB (2GB minimum)
 - **Disk**: 2GB free space
 - **Processor**: 2-core CPU minimum
 - **OS**: Windows 10/11, macOS 10.14+, Linux (Ubuntu 18.04+)
 
 ### Required Software
 ```
-✓ Python 3.13+
-✓ Node.js 18.x or higher
-✓ npm 9.x or yarn 3.x
-✓ Git (for cloning repository)
+Python 3.13+
+Node.js 18.x or higher
+npm 9.x or yarn 3.x
+Git
 ```
 
 ### Check Your Versions
@@ -42,7 +42,7 @@ git --version
 
 ---
 
-## 🔑 API Key Setup
+## API Key Setup
 
 ### Step 1: Get GROQ API Key (FREE)
 
@@ -57,7 +57,7 @@ Groq provides a free API with no credit card required.
    - Copy the key (starts with `gsk_`)
 5. **Save securely** - you'll need this in Step 3 below
 
-**✅ Features**:
+**Features**:
 - Free tier with NO rate limits
 - Supports llama-3.3-70b-versatile model
 - Instant inference (no queue)
@@ -89,7 +89,7 @@ If using local MongoDB, skip to **Backend Setup**.
 
 ---
 
-## 🗄️ Database Setup
+## Database Setup
 
 ### Option A: Local MongoDB (Development)
 
@@ -137,7 +137,7 @@ Use the connection string from Setup above. No local installation needed.
 
 ---
 
-## 🐍 Backend Setup
+## Backend Setup
 
 ### Windows (PowerShell)
 
@@ -151,8 +151,6 @@ python -m venv venv
 
 # Activate virtual environment
 .\venv\Scripts\Activate.ps1
-
-# You should see (venv) in your prompt
 ```
 
 If you get execution policy error:
@@ -165,7 +163,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 pip install -r requirements.txt
 
 # Verify installation
-pip list | grep -E "fastapi|pydantic|groq"
+pip list | findstr "fastapi pydantic groq"
 ```
 
 **Create .env file**:
@@ -197,7 +195,7 @@ Expected output:
 ```
 INFO:     Uvicorn running on http://0.0.0.0:8000
 INFO:     Application startup complete
-✅ GROQ AI Client initialized successfully
+GROQ AI Client initialized successfully
 ```
 
 ### macOS/Linux (Bash)
@@ -212,8 +210,6 @@ python3 -m venv venv
 
 # Activate virtual environment
 source venv/bin/activate
-
-# You should see (venv) in your prompt
 ```
 
 ```bash
@@ -254,7 +250,7 @@ Or visit in browser: http://localhost:8000/docs
 
 ---
 
-## 📦 Frontend Setup
+## Frontend Setup
 
 Open a **new terminal** (keep your backend terminal running).
 
@@ -265,7 +261,6 @@ cd frontend
 
 # Install dependencies
 npm install
-# (This will take 2-3 minutes)
 
 # Start development server
 npm run dev
@@ -273,12 +268,12 @@ npm run dev
 
 Expected output:
 ```
-➜ Local: http://localhost:3000
+Local: http://localhost:3000
 ```
 
 ---
 
-## ✅ Verification & Testing
+## Verification & Testing
 
 ### Test 1: Check Backend Health
 
@@ -310,26 +305,26 @@ You should see:
 
 ### Test 4: API Integration
 
-In browser console (F12 → Console):
+In browser console (F12 -> Console):
 ```javascript
 // Test API connection
 fetch('http://localhost:8000/health')
   .then(r => r.json())
-  .then(d => console.log('✅ Backend connected:', d))
-  .catch(e => console.error('❌ Backend error:', e))
+  .then(d => console.log('Backend connected:', d))
+  .catch(e => console.error('Backend error:', e))
 ```
 
-Should log: `✅ Backend connected: {status: 'healthy'}`
+Should log: `Backend connected: {status: 'healthy'}`
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Backend Issues
 
 **"ModuleNotFoundError: No module named 'fastapi'"**
 ```bash
-# Make sure venv is activated (you should see (venv) in prompt)
+# Make sure venv is activated
 source venv/bin/activate  # macOS/Linux
 .\venv\Scripts\Activate.ps1  # Windows
 
@@ -344,9 +339,7 @@ ls -la .env  # macOS/Linux
 dir .env    # Windows
 
 # Make sure file contains:
-GROQ_API_KEY=gsk_...your_key...
-
-# If not, recreate it manually
+# GROQ_API_KEY=gsk_...your_key...
 ```
 
 **"Connection refused on port 8000"**
@@ -409,13 +402,13 @@ curl http://localhost:8000/health
 
 ---
 
-## 📚 Environment Variables Reference
+## Environment Variables Reference
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GROQ_API_KEY` | Required | Your Groq API key (get free from console.groq.com) |
+| `GROQ_API_KEY` | Required | Your Groq API key |
 | `GROQ_BASE_URL` | https://api.groq.com/openai/v1 | Groq API endpoint |
-| `MONGODB_URL` | mongodb://localhost:27017 | Database connection (local or Atlas) |
+| `MONGODB_URL` | mongodb://localhost:27017 | Database connection |
 | `DATABASE_NAME` | scamescape | Database name |
 | `ENVIRONMENT` | production | dev/production mode |
 | `DEBUG` | false | Enable debug logging |
@@ -423,7 +416,7 @@ curl http://localhost:8000/health
 
 ---
 
-## 🎉 You're All Set!
+## You're All Set!
 
 Your ScamEscape development environment is ready!
 
@@ -431,7 +424,5 @@ Your ScamEscape development environment is ready!
 1. Explore the game at http://localhost:3000
 2. Create a room and play a test round
 3. Check the leaderboard
-4. Read [API Documentation](./API_DOCS.md) for backend details
-5. Read [Architecture Guide](./ARCHITECTURE.md) for code structure
-
-**Happy fraud-fighting! 🛡️**
+4. Read API Documentation for backend details
+5. Read Architecture Guide for code structure
