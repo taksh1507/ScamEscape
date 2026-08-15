@@ -17,7 +17,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 RUN npm run build
 
-# ── Stage 3: run (slim runtime image using Next's standalone output) ───
+# ── Stage 3: run (standard output) ───
 FROM node:20-slim AS runner
 WORKDIR /app
 
@@ -28,10 +28,11 @@ ENV NODE_ENV=production \
 # node:20-slim already ships a 'node' user at UID 1000 — reuse it.
 
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=node:node /app/.next/standalone ./
-COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
 
 USER node
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["npm", "run", "start"]
