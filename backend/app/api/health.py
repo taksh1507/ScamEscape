@@ -15,7 +15,6 @@ def health_check():
         "status": "ok",
         "service": "FraudGuard Arena",
         "api_key_status": api_key_status,
-        "api_key_preview": f"{api_key[:15]}..." if api_key else "NOT SET",
         "groq_base_url": settings.GROQ_BASE_URL
     }
 
