@@ -21,4 +21,4 @@ The frontend built successfully but npm audit returned 1 critical and 6 high pac
 
 Remaining work: review the moderate dependency advisories, fix the pre-existing lint errors, complete runtime/security/integration and UI audits, then verify deployment compatibility. This pass does not establish production readiness or complete the broader modernization request.
 
-Pull request: pending creation.
+Pull request: https://github.com/taksh1507/ScamEscape/pull/4
